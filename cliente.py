@@ -1,3 +1,5 @@
+from datetime import datetime, date
+
 class Cliente:
     def __init__(self, nome, data_nascimento, cpf, email, telefone):
         self.nome = nome
@@ -31,8 +33,17 @@ class Cliente:
         return self._data_nascimento
     
     @data_nascimento.setter
-    def data_nascimento(self, data):
-        self._data_nascimento = data
+    def data_nascimento(self, data_str):
+        if isinstance(data_str, date):
+            self._data_nascimento = data_str
+            return
+        try:
+            data_convertida = datetime.strptime(data_str, "%d/%m/%Y").date()
+            if data_convertida > date.today():
+                raise ValueError("A data de nascimento não é válida")             
+            self._data_nascimento = data_convertida
+        except ValueError:
+            raise ValueError("Formato de data inválido! Use DD/MM/AAAA")
 
     @property
     def telefone(self):
@@ -50,3 +61,9 @@ class Cliente:
     @property
     def cpf(self):
         return self.__cpf
+    
+    @property
+    def idade(self):
+        hoje = date.today()
+        idade = hoje.year - self._data_nascimento.year - (hoje.month, hoje.day) < (self._data_nascimento.month, self._data_nascimento.day)
+        return idade
