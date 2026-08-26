@@ -46,13 +46,20 @@ erDiagram
 
 ## DDL
 
-Arquivo: `supabase/migrations/0001_schema_inicial.sql`
+Arquivo: `supabase/migrations/20260826120000_schema_inicial.sql`
+
+> **Emenda aplicada na F1.** `auth_user_id` guarda a identidade mas **não** tem
+> foreign key para `auth.users` nesta fase. A tabela do GoTrue só ganha seu
+> formato final quando o serviço de autenticação roda as próprias migrações —
+> amarrar a persistência a isso tornaria a Fase 1 impossível de testar sem a
+> stack de auth no ar. A constraint entra na
+> [Fase 3](fase-3-autenticacao.md), junto com o resto da autenticação.
 
 ```sql
 -- ---------- clientes ----------
 create table clientes (
   id              bigint generated always as identity primary key,
-  auth_user_id    uuid not null unique references auth.users(id) on delete restrict,
+  auth_user_id    uuid not null unique,   -- FK para auth.users entra na Fase 3
   nome            text not null check (length(trim(nome)) > 0),
   cpf             char(11) not null unique check (cpf ~ '^[0-9]{11}$'),
   email           text not null,
