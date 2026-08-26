@@ -1,2 +1,100 @@
-# pythonbank
-Irei desenvolver um banco utlizando POO na linguagem Python
+# Banco Jean
+
+Sistema bancário em Python, construído para exercitar Programação Orientada a
+Objetos em um domínio onde os erros têm consequência: dinheiro.
+
+O projeto está sendo levado de um script de terminal para uma arquitetura de
+serviços com ledger transacional, API autenticada e interface web. O plano
+completo está em [`docs/`](docs/).
+
+**Estado atual: Fase 0 concluída** — domínio isolado, testado e sem persistência.
+
+---
+
+## Como rodar
+
+Requer Python 3.11 ou superior.
+
+```bash
+git clone https://github.com/Jean-Macedo/pythonbank.git
+cd pythonbank
+
+python -m venv .venv
+source .venv/Scripts/activate      # Windows (Git Bash)
+# .venv\Scripts\activate           # Windows (PowerShell)
+# source .venv/bin/activate        # Linux e macOS
+
+pip install -e ".[dev]"
+```
+
+### A aplicação
+
+```bash
+python interface.py
+```
+
+Um menu de terminal com cadastro, abertura de contas, depósito, saque,
+transferência entre contas e extrato. O estado vive em memória — fechar o
+programa apaga tudo. Persistência entra na Fase 1.
+
+### Os testes
+
+```bash
+pytest                 # suíte completa
+pytest --cov           # com relatório de cobertura
+ruff check .           # lint
+```
+
+---
+
+## Estrutura
+
+```
+core/                 domínio — não conhece banco, HTTP nem terminal
+├── cliente.py        dados cadastrais e as contas que o cliente possui
+├── conta.py          regras de movimentação e ciclo de vida da conta
+├── dinheiro.py       Decimal com duas casas; float é rejeitado, não convertido
+├── erros.py          ErroDeDominio e subclasses, cada uma com código estável
+└── eventos.py        Transacao — lançamento imutável do ledger
+
+tests/                135 testes, incluindo checagens de arquitetura por AST
+interface.py          CLI — lê, delega ao domínio, formata. Não valida nada.
+docs/                 PRD: fases, decisões técnicas, modelo de dados, API
+```
+
+A separação entre `core/` e o resto não é organizacional, é a premissa do
+projeto: enquanto o domínio não importar infraestrutura, a lógica de negócio
+sobrevive à troca de qualquer camada em volta. Isso é verificado por testes em
+[`tests/test_arquitetura.py`](tests/test_arquitetura.py), não por convenção.
+
+---
+
+## Decisões que moldam o código
+
+Todas detalhadas em [`docs/01-decisoes-tecnicas.md`](docs/01-decisoes-tecnicas.md).
+
+| | |
+| --- | --- |
+| **Dinheiro é `Decimal`** | `float` é rejeitado com `TypeError`, não convertido. Aceitar `0.1` silenciosamente reintroduz o erro que o módulo existe para evitar. |
+| **O ledger é a verdade** | O saldo é cache do histórico. Toda operação registra o lançamento, e os dois nunca podem divergir. |
+| **O domínio não conhece o banco** | O SQL imporá integridade; o Python impõe política. A fronteira é explícita. |
+| **Erro tem código** | Nenhum `ValueError` anônimo. Cada falha de regra carrega um código estável que a apresentação consulta — nunca a mensagem em português. |
+
+---
+
+## Roteiro
+
+| Fase | Entrega | Estado |
+| --- | --- | --- |
+| [F0](docs/fase-0-dominio.md) | Domínio isolado, `Decimal`, N contas por cliente, testes | **Concluída** |
+| [F1](docs/fase-1-persistencia.md) | PostgreSQL via Supabase local, movimentação atômica em PL/pgSQL | A fazer |
+| [F2](docs/fase-2-api-rest.md) | API REST com FastAPI | A fazer |
+| [F3](docs/fase-3-autenticacao.md) | Autenticação, RLS e verificação de titularidade | A fazer |
+| [F4](docs/fase-4-interface.md) | Interface web em React | A fazer |
+| [F5](docs/fase-5-empacotamento.md) | Docker Compose e implantação | A fazer |
+
+---
+
+## Licença
+
+MIT — ver [LICENSE](LICENSE).

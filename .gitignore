@@ -2,3 +2,15 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+
+# cobertura
+.coverage
+htmlcov/
+
+# ambiente
+.env
+
+# empacotamento
+*.egg-info/
+build/
+dist/
