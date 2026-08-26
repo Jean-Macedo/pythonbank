@@ -119,6 +119,13 @@ documentação e passam a ser o mecanismo real de evolução do schema. Nenhuma
 alteração é feita clicando no painel: toda mudança nasce como arquivo
 versionado.
 
+**Serviços desligados (aplicado na F1).** `storage`, `realtime`, `edge_runtime` e
+`analytics` estão com `enabled = false` no `config.toml`. Os três primeiros
+segfaltam (`exit 139`) no ambiente de desenvolvimento atual — Windows + WSL2 —
+derrubando o `supabase start` inteiro, e nenhum deles é usado por este projeto.
+Ficam de pé apenas `db`, `auth`, `rest`, `kong`, `studio` e `inbucket`, que é o
+necessário até a Fase 4.
+
 ---
 
 ## Resumo
