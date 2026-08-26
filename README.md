@@ -95,6 +95,16 @@ Todas detalhadas em [`docs/01-decisoes-tecnicas.md`](docs/01-decisoes-tecnicas.m
 
 ---
 
+---
+
+## Contribuindo
+
+Nada vai direto para a `main`: todo trabalho nasce em uma branch `feat/` ou
+`fix/`, é mergeado com `--no-ff` e a branch é apagada em seguida. O ciclo
+completo está em [CONTRIBUTING.md](CONTRIBUTING.md).
+
+---
+
 ## Licença
 
 MIT — ver [LICENSE](LICENSE).
