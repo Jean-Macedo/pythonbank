@@ -3,8 +3,8 @@ from decimal import Decimal
 
 import pytest
 
-from core.cliente import Cliente, cpf_valido
-from core.erros import (
+from backend.core.cliente import Cliente, cpf_valido
+from backend.core.erros import (
     ApelidoDuplicado,
     ContaNaoEncontrada,
     CpfInvalido,

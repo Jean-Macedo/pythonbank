@@ -7,7 +7,7 @@ que este módulo existe para evitar.
 
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
-from core.erros import ValorInvalido
+from backend.core.erros import ValorInvalido
 
 CENTAVO = Decimal("0.01")
 ZERO = Decimal("0.00")

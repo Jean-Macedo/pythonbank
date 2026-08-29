@@ -10,11 +10,11 @@ Este CLI é descartado na Fase 4, quando o React assume a apresentação.
 
 import sys
 
-from core import dinheiro
-from core.cliente import Cliente
-from core.conta import TipoConta
-from core.erros import ErroDeDominio
-from core.eventos import TipoTransacao
+from backend.core import dinheiro
+from backend.core.cliente import Cliente
+from backend.core.conta import TipoConta
+from backend.core.erros import ErroDeDominio
+from backend.core.eventos import TipoTransacao
 
 LARGURA = 46
 

@@ -2,8 +2,8 @@ from decimal import Decimal
 
 import pytest
 
-from core import dinheiro
-from core.erros import ValorInvalido
+from backend.core import dinheiro
+from backend.core.erros import ValorInvalido
 
 
 class TestPrecisao:

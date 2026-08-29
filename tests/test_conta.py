@@ -2,8 +2,8 @@ from decimal import Decimal
 
 import pytest
 
-from core.conta import Conta, TipoConta
-from core.erros import (
+from backend.core.conta import Conta, TipoConta
+from backend.core.erros import (
     ContaInativa,
     ContaNaoEncerravel,
     ContasIguais,
@@ -11,7 +11,7 @@ from core.erros import (
     TipoDeContaInvalido,
     ValorInvalido,
 )
-from core.eventos import TipoTransacao
+from backend.core.eventos import TipoTransacao
 
 
 class TestAbertura:

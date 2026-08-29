@@ -105,3 +105,50 @@ def get_conta_do_cliente(
 provável do projeto inteiro. Mitigação: a verificação existe em um único lugar
 (`get_conta_do_cliente`) e a F3 adiciona um teste que percorre **todas** as
 rotas com `{conta_id}` tentando acessar conta alheia.
+
+---
+
+## Emendas aplicadas na execução
+
+### `psycopg` no lugar de `supabase-py`
+
+O PRD previa o SDK do Supabase. Usei `psycopg` direto: o backend tem acesso ao
+banco, e o cliente HTTP do Supabase existe para navegadores. Passar por PostgREST
+acrescentaria um salto de rede a cada chamada sem dar nada em troca, e o pool de
+conexões importa mais aqui do que a conveniência do SDK. As funções PL/pgSQL da
+F1 são invocadas com `select fn(...)`.
+
+### Autenticação é um stub até a F3
+
+`get_cliente_atual` resolve o cliente pelo cabeçalho `X-Cliente-Id`, **sem
+verificar nada**. Existe só para exercitar o ponto de injeção enquanto a
+autenticação não existe.
+
+Proteções enquanto isso: só funciona com `AUTENTICACAO_STUB=true`, e
+`config.validar_coerencia` recusa subir a aplicação com essa combinação em
+produção. A F3 substitui o corpo da função por validação de JWT — e nada mais
+muda, porque todas as rotas dependem da assinatura, não da implementação.
+
+### O teste de titularidade foi antecipado da F3
+
+A `RNF-3.10` previa o teste parametrizado sobre as rotas para a Fase 3. Como a
+titularidade é implementada aqui, o teste veio junto: sem ele, a F2 entregaria a
+verificação sem prova de que funciona. Está em
+[`tests/api/test_titularidade.py`](../tests/api/test_titularidade.py), lendo as
+rotas do schema OpenAPI — rota nova com `{conta_id}` entra sozinha.
+
+### Testes ficaram em `tests/`, não em `backend/tests/`
+
+Uma suíte só, com `tests/` (domínio), `tests/integracao/` (banco) e `tests/api/`
+(HTTP). Testes não entram na imagem Docker da F5, então não precisam morar
+dentro de `backend/`.
+
+### O que sobrou do domínio
+
+Vale registrar, porque muda o papel de `core/`: com o saldo no banco, os métodos
+`Conta.depositar` e `Conta.sacar` passam a ser usados **apenas pela CLI**. O que
+a API consome de `core/` é o que continua sendo política e validação — `Cliente`,
+`TipoConta`, `dinheiro`, `erros` e o limite de contas.
+
+Isso é a fronteira da [DT-05](01-decisoes-tecnicas.md#dt-05) se manifestando na
+prática: o banco assumiu a integridade, o Python ficou com a política.

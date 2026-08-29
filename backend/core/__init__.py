@@ -5,10 +5,10 @@ testável sem infraestrutura — é a garantia de que a lógica de negócio sobr
 à troca de qualquer camada em volta.
 """
 
-from core.cliente import Cliente
-from core.conta import Conta, TipoConta
-from core.erros import ErroDeDominio
-from core.eventos import TipoTransacao, Transacao
+from backend.core.cliente import Cliente
+from backend.core.conta import Conta, TipoConta
+from backend.core.erros import ErroDeDominio
+from backend.core.eventos import TipoTransacao, Transacao
 
 __all__ = [
     "Cliente",

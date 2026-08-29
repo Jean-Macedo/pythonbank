@@ -12,7 +12,7 @@ import pathlib
 import pytest
 
 RAIZ = pathlib.Path(__file__).resolve().parent.parent
-MODULOS_DO_DOMINIO = sorted((RAIZ / "core").glob("*.py"))
+MODULOS_DO_DOMINIO = sorted((RAIZ / "backend" / "core").glob("*.py"))
 
 INFRAESTRUTURA_PROIBIDA = {
     "supabase",
@@ -91,7 +91,7 @@ class TestDominioIsolado:
 
 
 def _e_erro_de_dominio(nome: str) -> bool:
-    from core import erros
+    from backend.core import erros
 
     classe = getattr(erros, nome, None)
     return isinstance(classe, type) and issubclass(classe, erros.ErroDeDominio)

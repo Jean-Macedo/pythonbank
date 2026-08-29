@@ -8,8 +8,8 @@ como elas se distinguem são *política*, e por isso vivem aqui e não no banco
 import re
 from datetime import date, datetime
 
-from core.conta import Conta, TipoConta
-from core.erros import (
+from backend.core.conta import Conta, TipoConta
+from backend.core.erros import (
     ApelidoDuplicado,
     ContaNaoEncontrada,
     CpfInvalido,
@@ -213,7 +213,7 @@ class Cliente:
     @property
     def patrimonio(self):
         """Soma dos saldos das contas ativas."""
-        from core.dinheiro import ZERO, quantizar
+        from backend.core.dinheiro import ZERO, quantizar
 
         return quantizar(sum((c.saldo for c in self.contas), ZERO))
 

@@ -1,6 +1,6 @@
 import pytest
 
-from core.cliente import Cliente
+from backend.core.cliente import Cliente
 
 # CPFs com dígitos verificadores corretos, usados como dados de teste.
 CPF_VALIDO = "52998224725"
