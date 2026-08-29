@@ -24,9 +24,9 @@ def depositar(
     conta: ContaLida = Depends(get_conta_do_cliente),
     repo: ContaRepo = Depends(get_conta_repo),
 ):
-    saldo = repo.depositar(conta.id, entrada.valor)
+    resultado = repo.depositar(conta.id, entrada.valor)
     return ResultadoTransacao(
-        saldo_atual=saldo, transacao_id=repo.ultimo_lancamento(conta.id)
+        saldo_atual=resultado.saldo, transacao_id=resultado.transacao_id
     )
 
 
@@ -45,9 +45,9 @@ def sacar(
     Checar aqui antes de chamar abriria uma janela entre a verificação e a
     escrita — exatamente o defeito que a DT-02 existe para eliminar.
     """
-    saldo = repo.sacar(conta.id, entrada.valor)
+    resultado = repo.sacar(conta.id, entrada.valor)
     return ResultadoTransacao(
-        saldo_atual=saldo, transacao_id=repo.ultimo_lancamento(conta.id)
+        saldo_atual=resultado.saldo, transacao_id=resultado.transacao_id
     )
 
 
@@ -73,7 +73,7 @@ def transferir(
     if destino.id == conta.id:
         raise ContasIguais()
 
-    saldo = repo.transferir(conta.id, destino.id, entrada.valor)
+    resultado = repo.transferir(conta.id, destino.id, entrada.valor)
     return ResultadoTransacao(
-        saldo_atual=saldo, transacao_id=repo.ultimo_lancamento(conta.id)
+        saldo_atual=resultado.saldo, transacao_id=resultado.transacao_id
     )

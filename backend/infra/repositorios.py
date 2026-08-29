@@ -12,6 +12,7 @@ from datetime import date, datetime
 from decimal import Decimal
 
 import psycopg
+from psycopg.rows import class_row
 
 from backend.core.erros import ContaNaoEncontrada, ErroDeDominio, por_codigo
 from backend.infra.database import conexao
@@ -49,6 +50,14 @@ class ContaLida:
 
 
 @dataclass(frozen=True, slots=True)
+class Movimentacao:
+    """Resultado de uma movimentação: os dois valores vêm da mesma transação."""
+
+    saldo: Decimal
+    transacao_id: int
+
+
+@dataclass(frozen=True, slots=True)
 class LancamentoLido:
     id: int
     tipo: str
@@ -71,28 +80,23 @@ def traduzir_erro(erro: psycopg.errors.RaiseException) -> ErroDeDominio:
 class ClienteRepo:
     def buscar_por_auth_id(self, auth_user_id: str) -> ClienteLido | None:
         with conexao() as con:
-            linha = con.execute(
-                """
-                select id, auth_user_id, nome, cpf, email, telefone, data_nascimento
-                  from clientes where auth_user_id = %s
-                """,
+            return con.cursor(row_factory=class_row(ClienteLido)).execute(
+                f"select {CAMPOS_CLIENTE} from clientes where auth_user_id = %s",
                 (auth_user_id,),
             ).fetchone()
-        return ClienteLido(*linha) if linha else None
 
     def buscar_por_id(self, cliente_id: int) -> ClienteLido | None:
         with conexao() as con:
-            linha = con.execute(
-                """
-                select id, auth_user_id, nome, cpf, email, telefone, data_nascimento
-                  from clientes where id = %s
-                """,
-                (cliente_id,),
+            return con.cursor(row_factory=class_row(ClienteLido)).execute(
+                f"select {CAMPOS_CLIENTE} from clientes where id = %s", (cliente_id,)
             ).fetchone()
-        return ClienteLido(*linha) if linha else None
 
 
+# Colunas nomeadas explicitamente e mapeadas por nome via `class_row`. Antes era
+# `ContaLida(*linha)`, posicional: reordenar um campo da dataclass trocaria
+# `saldo` por `ativa` sem erro nenhum, só dados corrompidos.
 CAMPOS_CONTA = "id, cliente_id, agencia, numero, tipo, apelido, saldo, ativa"
+CAMPOS_CLIENTE = "id, auth_user_id, nome, cpf, email, telefone, data_nascimento"
 
 
 class ContaRepo:
@@ -100,52 +104,52 @@ class ContaRepo:
 
     def listar_do_cliente(self, cliente_id: int) -> list[ContaLida]:
         with conexao() as con:
-            linhas = con.execute(
+            return con.cursor(row_factory=class_row(ContaLida)).execute(
                 f"select {CAMPOS_CONTA} from contas "
                 "where cliente_id = %s and ativa order by id",
                 (cliente_id,),
             ).fetchall()
-        return [ContaLida(*linha) for linha in linhas]
 
     def buscar(self, conta_id: int) -> ContaLida | None:
         with conexao() as con:
-            linha = con.execute(
+            return con.cursor(row_factory=class_row(ContaLida)).execute(
                 f"select {CAMPOS_CONTA} from contas where id = %s", (conta_id,)
             ).fetchone()
-        return ContaLida(*linha) if linha else None
 
     def buscar_por_agencia_numero(self, agencia: str, numero: str) -> ContaLida | None:
         with conexao() as con:
-            linha = con.execute(
+            return con.cursor(row_factory=class_row(ContaLida)).execute(
                 f"select {CAMPOS_CONTA} from contas "
                 "where agencia = %s and numero = %s and ativa",
                 (agencia, numero),
             ).fetchone()
-        return ContaLida(*linha) if linha else None
 
-    def contar_ativas(self, cliente_id: int) -> int:
-        with conexao() as con:
-            return con.execute(
-                "select count(*) from contas where cliente_id = %s and ativa",
-                (cliente_id,),
-            ).fetchone()[0]
-
-    def apelidos_do_cliente(self, cliente_id: int) -> list[str]:
-        with conexao() as con:
-            linhas = con.execute(
-                "select apelido from contas "
-                "where cliente_id = %s and ativa and apelido is not null",
-                (cliente_id,),
-            ).fetchall()
-        return [linha[0] for linha in linhas]
+    # `contar_ativas` e `apelidos_do_cliente` foram removidos junto com as
+    # corridas que habilitavam: ler a contagem ou a lista de apelidos para
+    # decidir em Python é check-then-act. Quem decide agora é o banco, dentro da
+    # mesma transação do insert.
 
     # ------------------------------------------------------------ ciclo de vida
 
-    def abrir(self, cliente_id: int, tipo: str, apelido: str | None) -> ContaLida:
+    def abrir(
+        self,
+        cliente_id: int,
+        tipo: str,
+        apelido: str | None,
+        limite_contas: int | None = None,
+    ) -> ContaLida:
+        """Abre a conta com o limite aplicado dentro da própria transação.
+
+        O `limite_contas` vem do domínio (DT-05: a política é do Python), mas
+        quem o aplica é o banco, sob lock da linha do cliente. Contar em Python
+        e inserir depois era check-then-act: medido, 10 aberturas simultâneas
+        furaram um limite de 5 e produziram 14 contas.
+        """
         with conexao() as con:
             try:
                 conta_id = con.execute(
-                    "select (abrir_conta(%s, %s, %s)).id", (cliente_id, tipo, apelido)
+                    "select (abrir_conta(%s, %s, %s, %s)).id",
+                    (cliente_id, tipo, apelido, limite_contas),
                 ).fetchone()[0]
             except psycopg.errors.RaiseException as erro:
                 raise traduzir_erro(erro) from erro
@@ -171,32 +175,34 @@ class ContaRepo:
 
     # ------------------------------------------------------------ movimentação
 
-    def _movimentar(self, funcao: str, *args) -> Decimal:
+    def _movimentar(self, funcao: str, *args) -> Movimentacao:
+        """Devolve saldo e id do lançamento vindos da **mesma** chamada.
+
+        Buscar o id depois, com um "último lançamento da conta", era uma corrida:
+        entre a escrita e a busca, outra requisição insere a dela e o cliente
+        recebe o comprovante errado. Medido antes da correção: 20 depósitos
+        simultâneos devolveram 3 ids distintos para 20 lançamentos reais.
+        """
         marcadores = ", ".join(["%s"] * len(args))
         with conexao() as con:
             try:
-                return con.execute(
-                    f"select {funcao}({marcadores})", args
-                ).fetchone()[0]
+                saldo, transacao_id = con.execute(
+                    f"select saldo, transacao_id from {funcao}({marcadores})", args
+                ).fetchone()
             except psycopg.errors.RaiseException as erro:
                 raise traduzir_erro(erro) from erro
+        return Movimentacao(saldo=saldo, transacao_id=transacao_id)
 
-    def depositar(self, conta_id: int, valor: Decimal) -> Decimal:
+    def depositar(self, conta_id: int, valor: Decimal) -> Movimentacao:
         return self._movimentar("realizar_deposito", conta_id, valor)
 
-    def sacar(self, conta_id: int, valor: Decimal) -> Decimal:
+    def sacar(self, conta_id: int, valor: Decimal) -> Movimentacao:
         return self._movimentar("realizar_saque", conta_id, valor)
 
-    def transferir(self, origem_id: int, destino_id: int, valor: Decimal) -> Decimal:
+    def transferir(
+        self, origem_id: int, destino_id: int, valor: Decimal
+    ) -> Movimentacao:
         return self._movimentar("transferir", origem_id, destino_id, valor)
-
-    def ultimo_lancamento(self, conta_id: int) -> int:
-        with conexao() as con:
-            return con.execute(
-                "select id from transacoes where conta_id = %s "
-                "order by id desc limit 1",
-                (conta_id,),
-            ).fetchone()[0]
 
     # ----------------------------------------------------------------- extrato
 
@@ -218,7 +224,7 @@ class ContaRepo:
         parametros.append(limite)
 
         with conexao() as con:
-            linhas = con.execute(
+            return con.cursor(row_factory=class_row(LancamentoLido)).execute(
                 f"""
                 select t.id, t.tipo, t.valor, t.saldo_apos,
                        cp.agencia || '/' || cp.numero as contraparte, t.data_hora
@@ -230,7 +236,6 @@ class ContaRepo:
                 """,
                 parametros,
             ).fetchall()
-        return [LancamentoLido(*linha) for linha in linhas]
 
 
 def exigir_conta(conta: ContaLida | None) -> ContaLida:

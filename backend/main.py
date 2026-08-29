@@ -15,7 +15,7 @@ from backend.api import contas, extrato, movimentacao
 from backend.api.deps import NaoAutenticado, get_cliente_atual
 from backend.config import configuracao
 from backend.core.erros import ErroDeDominio
-from backend.infra.database import abrir_pool, fechar_pool
+from backend.infra.database import abrir_pool, conexao, fechar_pool
 from backend.infra.repositorios import ClienteLido
 from backend.schemas import ClienteOut, ErroOut
 
@@ -79,8 +79,22 @@ async def tratar_erro_de_dominio(request: Request, erro: ErroDeDominio):
 
 @app.get("/health", tags=["infraestrutura"])
 def health():
-    """Sem autenticação — usado pelo healthcheck do Docker na Fase 5."""
-    return {"status": "ok"}
+    """Sem autenticação — usado pelo healthcheck do Docker na Fase 5.
+
+    Consulta o banco de propósito. Um health que só confirma que o processo
+    subiu faria o container reportar `healthy` com o PostgreSQL fora, e o
+    `depends_on: service_healthy` da F5 liberaria o frontend contra uma API que
+    não funciona.
+    """
+    try:
+        with conexao() as con:
+            con.execute("select 1")
+    except Exception as erro:  # noqa: BLE001 - qualquer falha aqui é indisponibilidade
+        log.warning("health: banco indisponível: %s", erro)
+        return JSONResponse(
+            status_code=503, content={"status": "degradado", "banco": "indisponivel"}
+        )
+    return {"status": "ok", "banco": "ok"}
 
 
 @app.get("/api/me", response_model=ClienteOut, tags=["cliente"])
