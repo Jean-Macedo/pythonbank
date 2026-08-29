@@ -10,16 +10,16 @@ from decimal import Decimal
 from enum import StrEnum
 from itertools import count
 
-from core import dinheiro
-from core.dinheiro import ZERO
-from core.erros import (
+from backend.core import dinheiro
+from backend.core.dinheiro import ZERO
+from backend.core.erros import (
     ContaInativa,
     ContaNaoEncerravel,
     ContasIguais,
     SaldoInsuficiente,
     TipoDeContaInvalido,
 )
-from core.eventos import TipoTransacao, Transacao
+from backend.core.eventos import TipoTransacao, Transacao
 
 AGENCIA_PADRAO = "0001"
 

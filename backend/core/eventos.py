@@ -13,7 +13,7 @@ from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 
-from core.erros import ErroDeProgramacao
+from backend.core.erros import ErroDeProgramacao
 
 
 class TipoTransacao(StrEnum):

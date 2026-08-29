@@ -7,8 +7,8 @@ O projeto está sendo levado de um script de terminal para uma arquitetura de
 serviços com ledger transacional, API autenticada e interface web. O plano
 completo está em [`docs/`](docs/).
 
-**Estado atual: Fase 1 concluída** — domínio isolado e persistência transacional
-em PostgreSQL, com movimentação atômica e ledger imutável.
+**Estado atual: Fase 2 concluída** — domínio isolado, persistência transacional
+em PostgreSQL e API REST com verificação de titularidade.
 
 ---
 
@@ -35,9 +35,10 @@ python interface.py
 ```
 
 Um menu de terminal com cadastro, abertura de contas, depósito, saque,
-transferência entre contas e extrato. O estado ainda vive em memória: a CLI é
-apresentação sobre o domínio, e ligá-la ao banco é trabalho da Fase 2, quando os
-repositórios entram.
+transferência entre contas e extrato. O estado vive em memória e **continuará
+assim**: a CLI existe como prova de que o domínio funciona sem infraestrutura, e
+é descartada na Fase 4, quando o React assume a apresentação. Quem fala com o
+banco é a API.
 
 ### O banco local
 
@@ -57,38 +58,61 @@ Studio em `http://127.0.0.1:54323`, banco em `postgresql://postgres:postgres@127
 > inteiro; nenhum é usado por este projeto. Se você precisar de algum, reative e
 > esteja pronto para investigar.
 
+### A API
+
+Com o banco no ar e o `.env` preenchido (`cp .env.example .env`):
+
+```bash
+uvicorn backend.main:app --reload
+```
+
+Swagger em `http://127.0.0.1:8000/docs`.
+
+> **A autenticação ainda é um stub.** Até a Fase 3, o cliente vem do cabeçalho
+> `X-Cliente-Id`, sem verificação nenhuma. Só funciona com
+> `AUTENTICACAO_STUB=true`, e a aplicação **recusa subir** com essa combinação em
+> produção.
+
 ### Os testes
 
 ```bash
-pytest                 # suíte completa: 135 unitários + 42 de integração
-pytest tests/integracao   # só integração (exige `supabase start`)
-pytest --cov           # com relatório de cobertura
-ruff check .           # lint
+pytest                   # suíte completa: 222 testes
+pytest tests/integracao  # banco (exige `supabase start`)
+pytest tests/api         # HTTP ponta a ponta (exige `supabase start`)
+pytest --cov             # com relatório de cobertura
+ruff check .             # lint
 ```
 
-Os testes de integração se **pulam sozinhos** quando o banco não está no ar, de
-modo que `pytest` continua funcionando em uma máquina sem Docker.
+Os testes que dependem do banco se **pulam sozinhos** quando ele não está no ar,
+de modo que `pytest` continua funcionando em uma máquina sem Docker.
 
 ---
 
 ## Estrutura
 
 ```
-core/                 domínio — não conhece banco, HTTP nem terminal
-├── cliente.py        dados cadastrais e as contas que o cliente possui
-├── conta.py          regras de movimentação e ciclo de vida da conta
-├── dinheiro.py       Decimal com duas casas; float é rejeitado, não convertido
-├── erros.py          ErroDeDominio e subclasses, cada uma com código estável
-└── eventos.py        Transacao — lançamento imutável do ledger
+backend/
+├── core/             domínio — não conhece banco, HTTP nem terminal
+│   ├── cliente.py    dados cadastrais e as contas que o cliente possui
+│   ├── conta.py      regras de movimentação e ciclo de vida da conta
+│   ├── dinheiro.py   Decimal com duas casas; float é rejeitado, não convertido
+│   ├── erros.py      ErroDeDominio e subclasses, cada uma com código estável
+│   └── eventos.py    Transacao — lançamento imutável do ledger
+├── api/              rotas: só transporte, nenhuma regra de negócio
+├── schemas/          contrato HTTP em Pydantic; dinheiro sai como string
+├── infra/            o único lugar que fala SQL
+├── config.py         variáveis de ambiente; falha ao subir se faltarem
+└── main.py           app, CORS e tradução de erro para status
 
 supabase/
 ├── migrations/       schema e funções PL/pgSQL — o mecanismo de evolução
 ├── seed.sql          dois clientes, três contas, para desenvolvimento
 └── config.toml       serviços ativos do stack local
 
-tests/                177 testes
+tests/                222 testes
 ├── test_*.py         domínio, mais checagens de arquitetura por AST
-└── integracao/       contra o PostgreSQL real; pulam sozinhos sem banco
+├── integracao/       contra o PostgreSQL real
+└── api/              HTTP ponta a ponta, incluindo titularidade por rota
 
 interface.py          CLI — lê, delega ao domínio, formata. Não valida nada.
 docs/                 PRD: fases, decisões técnicas, modelo de dados, API
@@ -112,6 +136,7 @@ Todas detalhadas em [`docs/01-decisoes-tecnicas.md`](docs/01-decisoes-tecnicas.m
 | **O domínio não conhece o banco** | O SQL impõe integridade; o Python impõe política. A fronteira é explícita. |
 | **Movimentação é atômica** | Depósito, saque e transferência acontecem dentro de funções PL/pgSQL. Nada de ler o saldo, calcular em Python e regravar. |
 | **Erro tem código** | Nenhum `ValueError` anônimo. Cada falha de regra carrega um código estável que a apresentação consulta — nunca a mensagem em português. |
+| **A conta vem da URL, o dono vem do token** | Toda rota com `conta_id` verifica titularidade num único lugar. Conta alheia responde 404, nunca 403 — um 403 permitiria enumerar as contas do banco. |
 
 ---
 
@@ -121,7 +146,7 @@ Todas detalhadas em [`docs/01-decisoes-tecnicas.md`](docs/01-decisoes-tecnicas.m
 | --- | --- | --- |
 | [F0](docs/fase-0-dominio.md) | Domínio isolado, `Decimal`, N contas por cliente, testes | **Concluída** |
 | [F1](docs/fase-1-persistencia.md) | PostgreSQL via Supabase local, movimentação atômica em PL/pgSQL | **Concluída** |
-| [F2](docs/fase-2-api-rest.md) | API REST com FastAPI | A fazer |
+| [F2](docs/fase-2-api-rest.md) | API REST com FastAPI | **Concluída** |
 | [F3](docs/fase-3-autenticacao.md) | Autenticação, RLS e verificação de titularidade | A fazer |
 | [F4](docs/fase-4-interface.md) | Interface web em React | A fazer |
 | [F5](docs/fase-5-empacotamento.md) | Docker Compose e implantação | A fazer |

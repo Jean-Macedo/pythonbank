@@ -124,3 +124,34 @@ class DataNascimentoInvalida(ErroDeDominio):
 class DataNascimentoFutura(ErroDeDominio):
     codigo = "DATA_NASCIMENTO_FUTURA"
     mensagem_padrao = "A data de nascimento não pode estar no futuro."
+
+
+# --------------------------------------------------------------------------
+# Registro por código
+# --------------------------------------------------------------------------
+
+def _subclasses(base: type) -> list[type]:
+    encontradas = []
+    for filha in base.__subclasses__():
+        encontradas.append(filha)
+        encontradas.extend(_subclasses(filha))
+    return encontradas
+
+
+#: Mapeia o `codigo` de volta para a classe. As funções PL/pgSQL da Fase 1
+#: levantam exceções carregando esses mesmos códigos; é assim que a camada de
+#: infraestrutura traduz um erro do banco em erro de domínio sem inspecionar
+#: mensagem em português.
+POR_CODIGO: dict[str, type[ErroDeDominio]] = {
+    classe.codigo: classe
+    for classe in _subclasses(ErroDeDominio)
+    # ContaInativa compartilha o código de ContaNaoEncontrada de propósito:
+    # quem chama não pode distinguir os dois casos
+    if classe is not ContaInativa
+}
+
+
+def por_codigo(codigo: str, mensagem: str | None = None) -> ErroDeDominio:
+    """Reconstrói o erro de domínio a partir do código, ou um genérico."""
+    classe = POR_CODIGO.get(codigo, ErroDeDominio)
+    return classe(mensagem)
