@@ -26,7 +26,10 @@ class NaoAutenticado(ErroDeDominio):
 
 
 def get_cliente_atual(
-    x_cliente_id: int | None = Header(default=None, alias="X-Cliente-Id"),
+    # `str`, não `int`: com `int` o Pydantic devolveria 422 para um cabeçalho
+    # malformado, vazando a forma interna e fugindo da tabela de erros. Falha de
+    # identificação é sempre 401.
+    x_cliente_id: str | None = Header(default=None, alias="X-Cliente-Id"),
     cfg: Configuracao = Depends(configuracao),
     repo: ClienteRepo = Depends(get_cliente_repo),
 ) -> ClienteLido:
@@ -46,10 +49,10 @@ def get_cliente_atual(
             "Autenticação ainda não implementada (Fase 3). "
             "Em desenvolvimento, ligue AUTENTICACAO_STUB=true."
         )
-    if x_cliente_id is None:
+    if x_cliente_id is None or not x_cliente_id.strip().isdigit():
         raise NaoAutenticado()
 
-    cliente = repo.buscar_por_id(x_cliente_id)
+    cliente = repo.buscar_por_id(int(x_cliente_id))
     if cliente is None:
         raise NaoAutenticado()
     return cliente

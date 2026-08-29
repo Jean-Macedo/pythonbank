@@ -5,7 +5,6 @@ from fastapi import APIRouter, Depends, status
 from backend.api.deps import get_cliente_atual, get_conta_do_cliente, get_conta_repo
 from backend.core.cliente import Cliente
 from backend.core.conta import Conta, TipoConta
-from backend.core.erros import ApelidoDuplicado, LimiteDeContas
 from backend.infra.repositorios import ClienteLido, ContaLida, ContaRepo
 from backend.schemas import AbrirContaIn, ContaOut, ContasOut, RenomearContaIn
 
@@ -41,24 +40,20 @@ def abrir(
 ):
     """Abre conta, aplicando as políticas do domínio antes de tocar no banco.
 
-    Limite de contas e unicidade de apelido são *política* e vivem no Python
-    (DT-05). O banco impõe a unicidade como rede de segurança, mas a mensagem
-    útil vem daqui.
+    O limite continua sendo política do domínio (DT-05) — o número sai de
+    `Cliente.LIMITE_DE_CONTAS` — mas quem o **aplica** é o banco, sob lock da
+    linha do cliente.
+
+    Contar aqui e inserir depois era check-then-act: medido, 10 aberturas
+    simultâneas furaram um limite de 5 e deixaram 14 contas. A unicidade do
+    apelido, pelo mesmo motivo, fica com o índice único.
     """
+    tipo = TipoConta.converter(entrada.tipo)
     apelido = Conta.normalizar_apelido(entrada.apelido)
 
-    if repo.contar_ativas(cliente.id) >= Cliente.LIMITE_DE_CONTAS:
-        raise LimiteDeContas(
-            f"Você já tem {Cliente.LIMITE_DE_CONTAS} contas abertas. "
-            "Encerre uma antes de abrir outra."
-        )
-    if apelido is not None:
-        existentes = {a.casefold() for a in repo.apelidos_do_cliente(cliente.id)}
-        if apelido.casefold() in existentes:
-            raise ApelidoDuplicado()
-
-    tipo = TipoConta.converter(entrada.tipo)
-    return para_saida(repo.abrir(cliente.id, tipo.value, apelido))
+    return para_saida(
+        repo.abrir(cliente.id, tipo.value, apelido, Cliente.LIMITE_DE_CONTAS)
+    )
 
 
 @router.get("/{conta_id}", response_model=ContaOut)
@@ -72,17 +67,13 @@ def renomear(
     conta: ContaLida = Depends(get_conta_do_cliente),
     repo: ContaRepo = Depends(get_conta_repo),
 ):
+    """Renomeia a conta.
+
+    Sem verificação prévia em Python: o índice `contas_apelido_idx` decide, e o
+    repositório traduz a violação em APELIDO_DUPLICADO. Ler os apelidos e
+    decidir aqui seria a mesma corrida corrigida na abertura.
+    """
     apelido = Conta.normalizar_apelido(entrada.apelido)
-
-    if apelido is not None:
-        ocupados = {
-            a.casefold()
-            for a in repo.apelidos_do_cliente(conta.cliente_id)
-            if conta.apelido is None or a.casefold() != conta.apelido.casefold()
-        }
-        if apelido.casefold() in ocupados:
-            raise ApelidoDuplicado()
-
     return para_saida(repo.renomear(conta.id, apelido))
 
 

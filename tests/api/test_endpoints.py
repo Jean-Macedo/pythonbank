@@ -9,7 +9,7 @@ class TestInfraestrutura:
     def test_health_dispensa_autenticacao(self, cliente_http):
         resposta = cliente_http.get("/health")
         assert resposta.status_code == 200
-        assert resposta.json() == {"status": "ok"}
+        assert resposta.json()["status"] == "ok"
 
     def test_documentacao_abre(self, cliente_http):
         assert cliente_http.get("/docs").status_code == 200
@@ -275,3 +275,64 @@ class TestExtrato:
             f"/api/contas/{conta_do_jean}/extrato?limite=5000", headers=cabecalho_jean
         )
         assert resposta.status_code == 422
+
+
+class TestCliente:
+    """RF-2.1 — `/api/me` era a única rota autenticada sem cobertura."""
+
+    def test_devolve_o_titular_autenticado(self, cliente_http, cabecalho_jean):
+        resposta = cliente_http.get("/api/me", headers=cabecalho_jean)
+        assert resposta.status_code == 200
+        corpo = resposta.json()
+        assert corpo["nome"] == "Jean Macedo"
+        assert corpo["cpf"] == "52998224725"
+
+    def test_cada_titular_recebe_os_proprios_dados(
+        self, cliente_http, cabecalho_jean, cabecalho_maria
+    ):
+        jean = cliente_http.get("/api/me", headers=cabecalho_jean).json()
+        maria = cliente_http.get("/api/me", headers=cabecalho_maria).json()
+        assert jean["id"] != maria["id"]
+        assert maria["nome"] == "Maria Souza"
+
+    def test_sem_autenticacao(self, cliente_http):
+        resposta = cliente_http.get("/api/me")
+        assert resposta.status_code == 401
+        assert resposta.json()["codigo"] == "NAO_AUTENTICADO"
+
+
+class TestCabecalhoMalformado:
+    """Falha de identificação é sempre 401, nunca 422 do Pydantic."""
+
+    @pytest.mark.parametrize("valor", ["abc", "", "  ", "1.5", "'; drop table contas--"])
+    def test_valor_invalido_devolve_401(self, cliente_http, valor):
+        resposta = cliente_http.get("/api/contas", headers={"X-Cliente-Id": valor})
+        assert resposta.status_code == 401
+        assert resposta.json()["codigo"] == "NAO_AUTENTICADO"
+
+    def test_cliente_inexistente_devolve_401(self, cliente_http):
+        resposta = cliente_http.get("/api/contas", headers={"X-Cliente-Id": "999999"})
+        assert resposta.status_code == 401
+
+
+class TestSaudeDoServico:
+    def test_health_confirma_o_banco(self, cliente_http):
+        """Um health que não consulta o banco faria o container reportar
+        `healthy` com o PostgreSQL fora (RNF-5.4)."""
+        corpo = cliente_http.get("/health").json()
+        assert corpo == {"status": "ok", "banco": "ok"}
+
+
+class TestTipoDeContaInvalido:
+    @pytest.mark.parametrize("apelido", ["   ", ""])
+    def test_apelido_em_branco_vira_ausente_e_nao_erro_de_tipo(
+        self, cliente_http, cabecalho_jean, apelido
+    ):
+        """Antes, o `check_violation` do apelido virava TIPO_DE_CONTA_INVALIDO."""
+        resposta = cliente_http.post(
+            "/api/contas",
+            json={"tipo": "corrente", "apelido": apelido},
+            headers=cabecalho_jean,
+        )
+        assert resposta.status_code == 201
+        assert resposta.json()["apelido"] is None
