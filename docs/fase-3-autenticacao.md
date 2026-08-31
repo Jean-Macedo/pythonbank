@@ -28,8 +28,13 @@ sistema. Sem ela, a API pública movimenta qualquer conta pelo número na URL.
 
 ## Autorização em duas camadas
 
-A verificação de titularidade da F2 é a primeira camada. RLS é a segunda,
-independente: mesmo um bug de roteamento no Python não vaza dados.
+A verificação de titularidade da F2 cobre o caminho da API. A RLS cobre o acesso
+**direto** ao banco — PostgREST, Studio, qualquer cliente com a chave anônima.
+
+> **Correção.** O texto original dizia que a RLS cobriria "mesmo um bug de
+> roteamento no Python". Não cobre: o backend conecta como dono do banco e dono
+> ignora RLS. As duas camadas são independentes e protegem caminhos diferentes.
+> Ver [DT-04](01-decisoes-tecnicas.md#dt-04).
 
 | ID | Requisito | Prio |
 | --- | --- | --- |
@@ -94,3 +99,57 @@ titularidade quebra a suíte sozinha.
 **RLS configurado errado expõe todos os clientes.** É silencioso: a aplicação
 continua funcionando normalmente. Só o teste RNF-3.11, que consulta o banco
 por fora do Python, detecta. Ele é obrigatório e roda no CI.
+
+---
+
+## Emendas aplicadas na execução
+
+### O token é ES256, não HS256
+
+O PRD supunha segredo compartilhado. O Supabase passa a assinar com **chave
+assimétrica**: o `JWT_SECRET` que aparece no `supabase status` não valida token
+nenhum — é resquício do esquema antigo. A validação usa o JWKS em
+`/auth/v1/.well-known/jwks.json`, com as chaves públicas em cache.
+
+É um erro fácil de cometer, porque o segredo está bem visível na saída do CLI e
+a validação com ele falha em *toda* requisição, sem pista do motivo.
+
+### A FK para `auth.users` entrou, e o seed mudou junto
+
+Adiada da F1, criada aqui. O seed passou a inserir os usuários no `auth.users`
+antes dos clientes, usando **apenas colunas da versão base do schema**: o seed
+roda durante o *"Initialising schema"*, antes de o GoTrue subir e aplicar as
+próprias migrações, então `email_confirmed_at` ainda não existe nesse momento.
+
+Esses usuários servem para navegar no Studio. Quem precisa autenticar de fato
+cria a conta pela API do GoTrue, que é o caminho real — e é o que os testes fazem.
+
+### `CADASTRO_INCOMPLETO` é 403, não 401
+
+Token válido cujo `sub` não tem `clientes` correspondente não é falha de
+autenticação: o usuário **está** autenticado. É cadastro pela metade. A ação de
+quem recebe é diferente — concluir o cadastro em vez de entrar de novo — então o
+código também é.
+
+### Compensação no cadastro
+
+Criar usuário no GoTrue e criar o titular no banco são sistemas diferentes; não
+há transação que abranja os dois. Se a etapa do banco falhar, o usuário do GoTrue
+é removido.
+
+Sem isso sobraria um login que existe e não leva a lugar nenhum, e — pior — uma
+segunda tentativa com o mesmo e-mail bateria em "já cadastrado" para sempre. Há
+teste para exatamente esse caminho.
+
+### As funções de movimentação não são expostas ao PostgREST
+
+`realizar_deposito` e companhia **não verificam titularidade** — quem verifica é
+a API. Concedê-las a `authenticated` permitiria a qualquer portador de token
+depositar e sacar em conta alheia passando o id pela RPC. O `execute` foi revogado
+de `public`, `anon` e `authenticated`; só o backend, como dono, as invoca.
+
+### A `DT-04` foi corrigida, não cumprida
+
+Ver [Decisões técnicas](01-decisoes-tecnicas.md#dt-04). A promessa de que a RLS
+cobriria bug de roteamento não se sustenta com o backend conectando como dono do
+banco. O texto foi ajustado para descrever o que o código faz.

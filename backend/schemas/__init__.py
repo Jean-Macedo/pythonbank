@@ -108,3 +108,44 @@ class AbrirContaIn(Entrada):
 
 class RenomearContaIn(Entrada):
     apelido: str | None = Field(default=None, max_length=60)
+
+
+# ------------------------------------------------------- autenticação (F3)
+
+
+class RegistroIn(Entrada):
+    """Cadastro. Validação de verdade é do domínio — aqui só a forma."""
+
+    nome: str = Field(min_length=1, max_length=120)
+    cpf: str = Field(min_length=11, max_length=14, examples=["529.982.247-25"])
+    email: str = Field(max_length=254)
+    telefone: str = Field(pattern=r"^[0-9]{10,11}$", examples=["11987654321"])
+    data_nascimento: str = Field(examples=["10/03/1995"])
+    senha: str = Field(
+        min_length=8,
+        max_length=72,  # limite do bcrypt: além disso o resto é ignorado em silêncio
+        examples=["uma-senha-longa"],
+    )
+
+
+class LoginIn(Entrada):
+    email: str
+    senha: str
+
+
+class RefreshIn(Entrada):
+    refresh_token: str
+
+
+class SessaoOut(BaseModel):
+    access_token: str
+    refresh_token: str
+    expira_em: int
+    tipo: str = "bearer"
+
+
+class RegistroOut(BaseModel):
+    cliente_id: int
+    conta_id: int
+    sessao: SessaoOut | None = None
+    """Ausente quando a instância exige confirmação de e-mail antes do login."""

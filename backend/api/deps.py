@@ -1,14 +1,19 @@
 """Dependências compartilhadas das rotas.
 
-Aqui mora a verificação de titularidade (RN-2.5). Ela existe em **um único
-lugar** de propósito: repetida em cada handler, uma rota nova acabaria esquecida,
-e é justamente esse o modo de falha mais provável do projeto.
+Aqui moram os dois pontos de controle de acesso:
+
+* `get_cliente_atual` — quem está chamando, provado pelo JWT
+* `get_conta_do_cliente` — a conta é dele, verificado em **um único lugar**
+
+O segundo existe uma vez só de propósito: repetido em cada handler, uma rota nova
+acabaria esquecida, e é esse o modo de falha mais provável do projeto.
 """
 
 from fastapi import Depends, Header
+from jwt import PyJWTError
 
-from backend.config import Configuracao, configuracao
 from backend.core.erros import ContaNaoEncontrada, ErroDeDominio
+from backend.infra import autenticacao
 from backend.infra.repositorios import ClienteLido, ClienteRepo, ContaLida, ContaRepo
 
 
@@ -25,36 +30,60 @@ class NaoAutenticado(ErroDeDominio):
     mensagem_padrao = "Sua sessão expirou. Entre novamente."
 
 
+class CadastroIncompleto(ErroDeDominio):
+    codigo = "CADASTRO_INCOMPLETO"
+    mensagem_padrao = (
+        "Seu usuário existe, mas o cadastro do titular não foi concluído."
+    )
+
+
+def token_do_cabecalho(authorization: str | None) -> str:
+    """Extrai o token de `Authorization: Bearer <jwt>`.
+
+    Cabeçalho ausente ou malformado é falha de identificação: 401, e nunca o 422
+    do Pydantic — que vazaria a forma interna e fugiria da tabela de erros.
+    """
+    if not authorization:
+        raise NaoAutenticado("Informe o token de acesso.")
+    partes = authorization.split(maxsplit=1)
+    if len(partes) != 2 or partes[0].lower() != "bearer" or not partes[1].strip():
+        raise NaoAutenticado("Formato de autorização inválido. Use: Bearer <token>.")
+    return partes[1].strip()
+
+
+def get_identidade(
+    authorization: str | None = Header(default=None, alias="Authorization"),
+) -> autenticacao.Identidade:
+    """Valida o JWT e devolve o que ele afirma. Nada além disso é confiável.
+
+    A validação é local, contra as chaves públicas do JWKS — nenhuma chamada de
+    rede no caminho da requisição depois que as chaves estão em cache.
+    """
+    token = token_do_cabecalho(authorization)
+    try:
+        return autenticacao.validar_token(token)
+    except autenticacao.ServicoIndisponivel:
+        raise  # 503, não 401: o token pode estar perfeito
+    except PyJWTError as erro:
+        # a razão exata (expirado, assinatura inválida, audiência errada) fica no
+        # log; para quem chama, toda falha de token é a mesma coisa
+        raise NaoAutenticado() from erro
+
+
 def get_cliente_atual(
-    # `str`, não `int`: com `int` o Pydantic devolveria 422 para um cabeçalho
-    # malformado, vazando a forma interna e fugindo da tabela de erros. Falha de
-    # identificação é sempre 401.
-    x_cliente_id: str | None = Header(default=None, alias="X-Cliente-Id"),
-    cfg: Configuracao = Depends(configuracao),
+    identidade: autenticacao.Identidade = Depends(get_identidade),
     repo: ClienteRepo = Depends(get_cliente_repo),
 ) -> ClienteLido:
-    """Resolve quem está chamando.
+    """Resolve o titular a partir do `sub` do token.
 
-    **Implementação temporária da Fase 2.** Lê o cliente de um cabeçalho, sem
-    verificar nada — serve apenas para exercitar o ponto de injeção enquanto a
-    autenticação não existe. A Fase 3 substitui o corpo desta função por
-    validação de JWT do Supabase Auth, e nada mais no projeto precisa mudar:
-    todas as rotas dependem desta assinatura, não da implementação.
-
-    O stub só funciona com `AUTENTICACAO_STUB=true`, e `config.validar_coerencia`
-    impede que essa combinação exista em produção.
+    Token válido sem `clientes` correspondente é um cadastro pela metade — o
+    usuário existe no GoTrue mas o registro do titular não foi criado. Responde
+    diferente de "não autenticado" porque a ação do usuário também é outra:
+    concluir o cadastro, não entrar de novo.
     """
-    if not cfg.autenticacao_stub:
-        raise NaoAutenticado(
-            "Autenticação ainda não implementada (Fase 3). "
-            "Em desenvolvimento, ligue AUTENTICACAO_STUB=true."
-        )
-    if x_cliente_id is None or not x_cliente_id.strip().isdigit():
-        raise NaoAutenticado()
-
-    cliente = repo.buscar_por_id(int(x_cliente_id))
+    cliente = repo.buscar_por_auth_id(identidade.auth_user_id)
     if cliente is None:
-        raise NaoAutenticado()
+        raise CadastroIncompleto()
     return cliente
 
 

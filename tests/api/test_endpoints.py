@@ -280,12 +280,20 @@ class TestExtrato:
 class TestCliente:
     """RF-2.1 — `/api/me` era a única rota autenticada sem cobertura."""
 
-    def test_devolve_o_titular_autenticado(self, cliente_http, cabecalho_jean):
+    def test_devolve_o_titular_autenticado(
+        self, cliente_http, cabecalho_jean, usuarios, banco, jean
+    ):
         resposta = cliente_http.get("/api/me", headers=cabecalho_jean)
         assert resposta.status_code == 200
         corpo = resposta.json()
+        assert corpo["id"] == jean
         assert corpo["nome"] == "Jean Macedo"
-        assert corpo["cpf"] == "52998224725"
+        assert corpo["email"] == usuarios["jean"]["email"]
+        # o CPF é gerado por sessão; o que importa é ser o do titular do token
+        esperado = banco.execute(
+            "select cpf from clientes where id = %s", (jean,)
+        ).fetchone()[0]
+        assert corpo["cpf"] == esperado
 
     def test_cada_titular_recebe_os_proprios_dados(
         self, cliente_http, cabecalho_jean, cabecalho_maria
@@ -304,14 +312,27 @@ class TestCliente:
 class TestCabecalhoMalformado:
     """Falha de identificação é sempre 401, nunca 422 do Pydantic."""
 
-    @pytest.mark.parametrize("valor", ["abc", "", "  ", "1.5", "'; drop table contas--"])
-    def test_valor_invalido_devolve_401(self, cliente_http, valor):
-        resposta = cliente_http.get("/api/contas", headers={"X-Cliente-Id": valor})
+    @pytest.mark.parametrize(
+        "valor",
+        [
+            "abc",                      # não é um token
+            "Bearer",                   # sem o token
+            "Bearer ",                  # token vazio
+            "Bearer abc.def.ghi",       # três partes, assinatura inválida
+            "Basic dXNlcjpwYXNz",       # esquema errado
+            "'; drop table contas--",
+        ],
+    )
+    def test_autorizacao_invalida_devolve_401(self, cliente_http, valor):
+        resposta = cliente_http.get("/api/contas", headers={"Authorization": valor})
         assert resposta.status_code == 401
         assert resposta.json()["codigo"] == "NAO_AUTENTICADO"
 
-    def test_cliente_inexistente_devolve_401(self, cliente_http):
-        resposta = cliente_http.get("/api/contas", headers={"X-Cliente-Id": "999999"})
+    def test_token_sem_prefixo_bearer(self, cliente_http, usuarios):
+        """O token cru, sem `Bearer`, não vale."""
+        resposta = cliente_http.get(
+            "/api/contas", headers={"Authorization": usuarios["jean"]["token"]}
+        )
         assert resposta.status_code == 401
 
 

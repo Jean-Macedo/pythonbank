@@ -7,16 +7,29 @@
 
 -- Os CPFs abaixo têm dígitos verificadores válidos — os mesmos usados em
 -- tests/conftest.py, para que os dois ambientes falem dos mesmos dados.
+
+-- Usuários do GoTrue. Desde a Fase 3 existe foreign key de `clientes` para
+-- `auth.users`, então eles precisam existir antes.
 --
--- Os UUIDs em `auth_user_id` são fixos e arbitrários nesta fase. Na Fase 3 eles
--- passam a corresponder a usuários reais do GoTrue, e é lá que a foreign key
--- para `auth.users` é criada.
+-- Só colunas presentes na versão base do schema `auth`: o seed roda durante o
+-- "Initialising schema", **antes** de o GoTrue subir e aplicar as próprias
+-- migrações. Colunas como `email_confirmed_at` ainda não existem nesse momento.
+-- Estes usuários servem para navegar no Studio; quem precisa autenticar de fato
+-- cria a conta pela API do GoTrue, que é o caminho real.
+insert into auth.users (id, instance_id, aud, role, email, encrypted_password)
+values
+  ('11111111-1111-1111-1111-111111111111',
+   '00000000-0000-0000-0000-000000000000',
+   'authenticated', 'authenticated', 'jean@seed.invalid', ''),
+  ('22222222-2222-2222-2222-222222222222',
+   '00000000-0000-0000-0000-000000000000',
+   'authenticated', 'authenticated', 'maria@seed.invalid', '');
 
 insert into clientes (auth_user_id, nome, cpf, email, telefone, data_nascimento) values
   ('11111111-1111-1111-1111-111111111111', 'Jean Macedo',
-   '52998224725', 'jean@exemplo.com',  '11987654321', '1995-03-10'),
+   '52998224725', 'jean@seed.invalid',  '11987654321', '1995-03-10'),
   ('22222222-2222-2222-2222-222222222222', 'Maria Souza',
-   '11144477735', 'maria@exemplo.com', '21998765432', '1988-11-22');
+   '11144477735', 'maria@seed.invalid', '21998765432', '1988-11-22');
 
 -- Jean tem duas contas; Maria tem uma. A segunda conta do Jean é o que torna
 -- possível exercitar transferência entre contas do mesmo titular.

@@ -7,8 +7,8 @@ O projeto está sendo levado de um script de terminal para uma arquitetura de
 serviços com ledger transacional, API autenticada e interface web. O plano
 completo está em [`docs/`](docs/).
 
-**Estado atual: Fase 2 concluída** — domínio isolado, persistência transacional
-em PostgreSQL e API REST com verificação de titularidade.
+**Estado atual: Fase 3 concluída** — domínio isolado, persistência transacional
+em PostgreSQL, API REST autenticada por JWT e Row Level Security no banco.
 
 ---
 
@@ -68,15 +68,33 @@ uvicorn backend.main:app --reload
 
 Swagger em `http://127.0.0.1:8000/docs`.
 
-> **A autenticação ainda é um stub.** Até a Fase 3, o cliente vem do cabeçalho
-> `X-Cliente-Id`, sem verificação nenhuma. Só funciona com
-> `AUTENTICACAO_STUB=true`, e a aplicação **recusa subir** com essa combinação em
-> produção.
+Autenticação por JWT do Supabase. Para experimentar:
+
+```bash
+# o cadastro já devolve o token
+cat > cadastro.json <<'JSON'
+{"nome": "Fulano",
+ "cpf": "529.982.247-25",
+ "email": "f@exemplo.com",
+ "telefone": "11987654321",
+ "data_nascimento": "10/03/1995",
+ "senha": "uma-senha-longa"}
+JSON
+
+curl -X POST localhost:8000/auth/registro -H 'Content-Type: application/json' -d @cadastro.json
+
+# e o token abre as rotas autenticadas
+curl localhost:8000/api/contas -H "Authorization: Bearer <access_token>"
+```
+
+> **O token é ES256**, assinado com chave assimétrica. O `JWT_SECRET` que aparece
+> no `supabase status` não valida nada — é resquício do esquema simétrico antigo.
+> A validação usa o JWKS em `/auth/v1/.well-known/jwks.json`.
 
 ### Os testes
 
 ```bash
-pytest                   # suíte completa: 222 testes
+pytest                   # suíte completa: 277 testes
 pytest tests/integracao  # banco (exige `supabase start`)
 pytest tests/api         # HTTP ponta a ponta (exige `supabase start`)
 pytest --cov             # com relatório de cobertura
@@ -99,8 +117,10 @@ backend/
 │   ├── erros.py      ErroDeDominio e subclasses, cada uma com código estável
 │   └── eventos.py    Transacao — lançamento imutável do ledger
 ├── api/              rotas: só transporte, nenhuma regra de negócio
+│   ├── auth.py       cadastro, entrada e renovação de sessão
+│   └── deps.py       validação de JWT e verificação de titularidade
 ├── schemas/          contrato HTTP em Pydantic; dinheiro sai como string
-├── infra/            o único lugar que fala SQL
+├── infra/            o único lugar que fala SQL e com o GoTrue
 ├── config.py         variáveis de ambiente; falha ao subir se faltarem
 └── main.py           app, CORS e tradução de erro para status
 
@@ -109,10 +129,10 @@ supabase/
 ├── seed.sql          dois clientes, três contas, para desenvolvimento
 └── config.toml       serviços ativos do stack local
 
-tests/                222 testes
+tests/                277 testes
 ├── test_*.py         domínio, mais checagens de arquitetura por AST
 ├── integracao/       contra o PostgreSQL real
-└── api/              HTTP ponta a ponta, incluindo titularidade por rota
+└── api/              HTTP ponta a ponta: titularidade por rota, JWT e RLS
 
 interface.py          CLI — lê, delega ao domínio, formata. Não valida nada.
 docs/                 PRD: fases, decisões técnicas, modelo de dados, API
@@ -137,6 +157,7 @@ Todas detalhadas em [`docs/01-decisoes-tecnicas.md`](docs/01-decisoes-tecnicas.m
 | **Movimentação é atômica** | Depósito, saque e transferência acontecem dentro de funções PL/pgSQL. Nada de ler o saldo, calcular em Python e regravar. |
 | **Erro tem código** | Nenhum `ValueError` anônimo. Cada falha de regra carrega um código estável que a apresentação consulta — nunca a mensagem em português. |
 | **A conta vem da URL, o dono vem do token** | Toda rota com `conta_id` verifica titularidade num único lugar. Conta alheia responde 404, nunca 403 — um 403 permitiria enumerar as contas do banco. |
+| **A RLS protege o banco, não a API** | O backend conecta como dono e ignora RLS. Ela cobre o acesso direto via PostgREST; contra bug de roteamento quem cobre é o teste por rota. Duas camadas, caminhos diferentes. |
 
 ---
 
@@ -147,7 +168,7 @@ Todas detalhadas em [`docs/01-decisoes-tecnicas.md`](docs/01-decisoes-tecnicas.m
 | [F0](docs/fase-0-dominio.md) | Domínio isolado, `Decimal`, N contas por cliente, testes | **Concluída** |
 | [F1](docs/fase-1-persistencia.md) | PostgreSQL via Supabase local, movimentação atômica em PL/pgSQL | **Concluída** |
 | [F2](docs/fase-2-api-rest.md) | API REST com FastAPI | **Concluída** |
-| [F3](docs/fase-3-autenticacao.md) | Autenticação, RLS e verificação de titularidade | A fazer |
+| [F3](docs/fase-3-autenticacao.md) | Autenticação, RLS e verificação de titularidade | **Concluída** |
 | [F4](docs/fase-4-interface.md) | Interface web em React | A fazer |
 | [F5](docs/fase-5-empacotamento.md) | Docker Compose e implantação | A fazer |
 

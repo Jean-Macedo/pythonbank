@@ -79,6 +79,22 @@ DevTools saca da conta de outra pessoa. A verificação é implementada uma úni
 vez, como dependência do FastAPI, e não repetida em cada handler — repetição é
 onde uma rota acaba esquecida.
 
+**Correção aplicada na F3 — até onde a RLS protege.** A versão original desta
+decisão afirmava que "RLS garante que mesmo um bug no roteamento não vaza dados".
+**Isso não é verdade nesta arquitetura.** O backend conecta ao PostgreSQL como
+dono do banco, e dono ignora RLS por definição. Um bug em `get_conta_do_cliente`
+vazaria dados sem que nenhuma policy fosse consultada.
+
+O que a RLS de fato protege é o acesso **direto** ao banco: PostgREST na porta
+54321, Studio, ou qualquer cliente de posse da chave anônima. Essa superfície
+existe, é exposta, e sem RLS estaria completamente aberta — o que torna a medida
+necessária, só não pelo motivo que estava escrito.
+
+Contra bug de roteamento, quem cobre é o teste parametrizado por rota em
+`tests/api/test_titularidade.py`. As duas proteções são independentes e cobrem
+caminhos diferentes; tratá-las como redundantes levaria a confiar numa que não
+se aplica.
+
 **Consequência.** A checagem de titularidade é um ponto único de falha
 deliberado: um teste que tenta acessar conta alheia por *cada* rota é
 obrigatório ([CA-04](00-visao-e-escopo.md#critérios-de-aceite-globais)).

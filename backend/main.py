@@ -11,10 +11,11 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from backend.api import contas, extrato, movimentacao
+from backend.api import auth, contas, extrato, movimentacao
 from backend.api.deps import NaoAutenticado, get_cliente_atual
 from backend.config import configuracao
 from backend.core.erros import ErroDeDominio
+from backend.infra.autenticacao import ErroDeAutenticacao, ServicoIndisponivel
 from backend.infra.database import abrir_pool, conexao, fechar_pool
 from backend.infra.repositorios import ClienteLido
 from backend.schemas import ClienteOut, ErroOut
@@ -26,6 +27,8 @@ log = logging.getLogger("banco")
 #: O padrão é 422 — um erro de domínio novo nunca deve virar 500 por esquecimento.
 STATUS_POR_CODIGO = {
     "NAO_AUTENTICADO": 401,
+    "CADASTRO_INCOMPLETO": 403,
+    "EMAIL_JA_CADASTRADO": 409,
     "CONTA_NAO_ENCONTRADA": 404,
     "CPF_DUPLICADO": 409,
     "APELIDO_DUPLICADO": 409,
@@ -49,7 +52,7 @@ async def ciclo_de_vida(app: FastAPI):
 
 app = FastAPI(
     title="Banco Jean",
-    version="0.2.0",
+    version="0.3.0",
     summary="API de contas e movimentação",
     lifespan=ciclo_de_vida,
 )
@@ -74,6 +77,40 @@ async def tratar_erro_de_dominio(request: Request, erro: ErroDeDominio):
     return JSONResponse(
         status_code=STATUS_POR_CODIGO.get(erro.codigo, STATUS_PADRAO),
         content=ErroOut(codigo=erro.codigo, mensagem=erro.mensagem).model_dump(),
+    )
+
+
+@app.exception_handler(ServicoIndisponivel)
+async def tratar_servico_indisponivel(request: Request, erro: ServicoIndisponivel):
+    """O serviço de autenticação não respondeu — não é culpa do token.
+
+    Devolver 401 mandaria a pessoa fazer login, que também não funcionaria, e
+    esconderia a indisponibilidade atrás de um erro de credencial.
+    """
+    log.error("serviço de autenticação indisponível: %s", erro)
+    return JSONResponse(
+        status_code=503,
+        content=ErroOut(
+            codigo="AUTENTICACAO_INDISPONIVEL",
+            mensagem="Serviço de autenticação indisponível. "
+            "Tente novamente em instantes.",
+        ).model_dump(),
+    )
+
+
+@app.exception_handler(ErroDeAutenticacao)
+async def tratar_erro_de_autenticacao(request: Request, erro: ErroDeAutenticacao):
+    """Falha vinda do GoTrue. O status dele é preservado quando faz sentido.
+
+    Um 5xx do serviço de autenticação vira 502: o problema é nosso dependente,
+    não da requisição de quem chamou.
+    """
+    status = erro.status if 400 <= erro.status < 500 else 502
+    return JSONResponse(
+        status_code=status,
+        content=ErroOut(
+            codigo="FALHA_DE_AUTENTICACAO", mensagem=erro.mensagem
+        ).model_dump(),
     )
 
 
@@ -109,6 +146,7 @@ def eu(cliente: ClienteLido = Depends(get_cliente_atual)):
     )
 
 
+app.include_router(auth.router)
 app.include_router(contas.router)
 app.include_router(movimentacao.router)
 app.include_router(extrato.router)
