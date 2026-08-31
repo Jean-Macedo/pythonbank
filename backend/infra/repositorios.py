@@ -15,7 +15,7 @@ import psycopg
 from psycopg.rows import class_row
 
 from backend.core.erros import ContaNaoEncontrada, ErroDeDominio, por_codigo
-from backend.infra.database import conexao
+from backend.infra.database import conexao, transacao
 
 # ---------------------------------------------------------------------------
 # Modelos de leitura
@@ -77,6 +77,13 @@ def traduzir_erro(erro: psycopg.errors.RaiseException) -> ErroDeDominio:
     return por_codigo(codigo)
 
 
+# Colunas nomeadas explicitamente e mapeadas por nome via `class_row`. Antes era
+# `ContaLida(*linha)`, posicional: reordenar um campo da dataclass trocaria
+# `saldo` por `ativa` sem erro nenhum, só dados corrompidos.
+CAMPOS_CLIENTE = "id, auth_user_id, nome, cpf, email, telefone, data_nascimento"
+CAMPOS_CONTA = "id, cliente_id, agencia, numero, tipo, apelido, saldo, ativa"
+
+
 class ClienteRepo:
     def buscar_por_auth_id(self, auth_user_id: str) -> ClienteLido | None:
         with conexao() as con:
@@ -92,11 +99,54 @@ class ClienteRepo:
             ).fetchone()
 
 
-# Colunas nomeadas explicitamente e mapeadas por nome via `class_row`. Antes era
-# `ContaLida(*linha)`, posicional: reordenar um campo da dataclass trocaria
-# `saldo` por `ativa` sem erro nenhum, só dados corrompidos.
-CAMPOS_CONTA = "id, cliente_id, agencia, numero, tipo, apelido, saldo, ativa"
-CAMPOS_CLIENTE = "id, auth_user_id, nome, cpf, email, telefone, data_nascimento"
+    def criar_com_conta_inicial(
+        self,
+        auth_user_id: str,
+        nome: str,
+        cpf: str,
+        email: str,
+        telefone: str,
+        data_nascimento: date,
+        tipo_conta: str = "corrente",
+        apelido: str | None = "Principal",
+    ) -> tuple[ClienteLido, int]:
+        """Cria o titular e a primeira conta na **mesma** transação.
+
+        Um cadastro que grava o cliente e falha ao abrir a conta deixaria alguém
+        sem conta nenhuma e sem como abrir a segunda — o limite conta a partir do
+        que existe. Ou nascem os dois, ou nenhum (RF-3.3).
+        """
+        with transacao() as con:
+            try:
+                cliente = con.cursor(row_factory=class_row(ClienteLido)).execute(
+                    f"""
+                    insert into clientes
+                        (auth_user_id, nome, cpf, email, telefone, data_nascimento)
+                    values (%s, %s, %s, %s, %s, %s)
+                    returning {CAMPOS_CLIENTE}
+                    """,
+                    (auth_user_id, nome, cpf, email, telefone, data_nascimento),
+                ).fetchone()
+
+                conta_id = con.execute(
+                    "select (abrir_conta(%s, %s, %s)).id",
+                    (cliente.id, tipo_conta, apelido),
+                ).fetchone()[0]
+            except psycopg.errors.UniqueViolation as erro:
+                # `clientes` tem duas constraints unique: cpf e auth_user_id.
+                # Reportar sempre CPF_DUPLICADO mentiria quando o conflito é o
+                # outro — mesmo defeito já corrigido em `abrir_conta`.
+                constraint = getattr(erro.diag, "constraint_name", "") or ""
+                if "auth_user_id" in constraint:
+                    raise por_codigo(
+                        "EMAIL_JA_CADASTRADO",
+                        "Este usuário já tem um cadastro de titular.",
+                    ) from erro
+                raise por_codigo("CPF_DUPLICADO") from erro
+            except psycopg.errors.RaiseException as erro:
+                raise traduzir_erro(erro) from erro
+
+        return cliente, conta_id
 
 
 class ContaRepo:

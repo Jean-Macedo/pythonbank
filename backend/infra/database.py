@@ -40,6 +40,19 @@ def fechar_pool() -> None:
 
 
 @contextmanager
+def transacao() -> Iterator[psycopg.Connection]:
+    """Conexão sem autocommit: tudo dentro do bloco vira uma transação só.
+
+    Para o punhado de operações que escrevem em mais de uma tabela e não cabem
+    numa função PL/pgSQL — cadastro é o caso: `clientes` e a conta inicial
+    precisam nascer juntos ou nenhum dos dois.
+    """
+    with abrir_pool().connection() as con:
+        con.autocommit = False
+        yield con
+
+
+@contextmanager
 def conexao() -> Iterator[psycopg.Connection]:
     """Empresta uma conexão do pool.
 

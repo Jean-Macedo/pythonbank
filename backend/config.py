@@ -29,12 +29,29 @@ class Configuracao(BaseSettings):
         default_factory=lambda: ["http://localhost:5173"]
     )
 
+    # --- Supabase Auth (Fase 3) ---
+    supabase_url: str = Field(
+        default="http://127.0.0.1:54321",
+        description="Gateway do Supabase. O JWKS e o GoTrue ficam sob /auth/v1.",
+    )
+    supabase_anon_key: str = Field(
+        default="",
+        description="Chave pública, usada como `apikey` nas rotas de auth. "
+        "Não concede acesso a dado nenhum por si só — quem decide é a RLS.",
+    )
+    supabase_service_role_key: str = Field(
+        default="",
+        description="Chave administrativa. Existe apenas no backend e nunca "
+        "chega ao frontend (RN-3.8).",
+    )
+
     ambiente: str = Field(default="desenvolvimento")
 
     autenticacao_stub: bool = Field(
         default=False,
-        description="Resolve o cliente pelo cabeçalho X-Cliente-Id em vez de um "
-        "JWT. Existe só até a Fase 3 e nunca pode ir para produção.",
+        description="OBSOLETO desde a Fase 3, quando a validação de JWT entrou. "
+        "Mantido só para que um .env antigo com ele ligado falhe alto, em vez "
+        "de a aplicação subir aceitando qualquer cabeçalho.",
     )
 
     @field_validator("cors_origins", mode="before")
@@ -51,10 +68,20 @@ class Configuracao(BaseSettings):
 
     def validar_coerencia(self) -> None:
         """Combinações que não podem existir, checadas na subida do app."""
-        if self.e_producao and self.autenticacao_stub:
+        if self.autenticacao_stub:
             raise RuntimeError(
-                "AUTENTICACAO_STUB não pode estar ligada em produção: ela aceita "
-                "qualquer cliente informado no cabeçalho, sem verificar nada."
+                "AUTENTICACAO_STUB foi removida na Fase 3, quando a validação de "
+                "JWT entrou. Remova a variável do .env — deixá-la ligada sugere "
+                "que a autenticação está desativada, e não está."
+            )
+        if not self.supabase_anon_key:
+            raise RuntimeError(
+                "SUPABASE_ANON_KEY é obrigatória: sem ela as rotas de cadastro e "
+                "login não conseguem falar com o serviço de autenticação."
+            )
+        if self.e_producao and self.supabase_url.startswith("http://"):
+            raise RuntimeError(
+                "SUPABASE_URL sem TLS em produção: o token trafegaria em claro."
             )
 
 
