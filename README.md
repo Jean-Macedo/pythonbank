@@ -7,8 +7,8 @@ O projeto está sendo levado de um script de terminal para uma arquitetura de
 serviços com ledger transacional, API autenticada e interface web. O plano
 completo está em [`docs/`](docs/).
 
-**Estado atual: Fase 3 concluída** — domínio isolado, persistência transacional
-em PostgreSQL, API REST autenticada por JWT e Row Level Security no banco.
+**Estado atual: Fase 4 concluída** — domínio isolado, persistência transacional,
+API autenticada por JWT e interface web em React.
 
 ---
 
@@ -35,10 +35,10 @@ python interface.py
 ```
 
 Um menu de terminal com cadastro, abertura de contas, depósito, saque,
-transferência entre contas e extrato. O estado vive em memória e **continuará
-assim**: a CLI existe como prova de que o domínio funciona sem infraestrutura, e
-é descartada na Fase 4, quando o React assume a apresentação. Quem fala com o
-banco é a API.
+transferência entre contas e extrato. O estado vive em memória: a CLI existe
+como prova de que o domínio funciona sem infraestrutura nenhuma, e é o que os
+testes de arquitetura verificam. Quem fala com o banco é a API, e quem o usuário
+vê é a interface web.
 
 ### O banco local
 
@@ -91,18 +91,39 @@ curl localhost:8000/api/contas -H "Authorization: Bearer <access_token>"
 > no `supabase status` não valida nada — é resquício do esquema simétrico antigo.
 > A validação usa o JWKS em `/auth/v1/.well-known/jwks.json`.
 
+### A interface
+
+```bash
+cd frontend
+npm install
+npm run dev          # http://localhost:5173
+```
+
+Requer a API no ar. Cadastro, login, várias contas, depósito, saque,
+transferência e extrato paginado.
+
 ### Os testes
 
 ```bash
-pytest                   # suíte completa: 277 testes
+pytest                   # backend: 283 testes
 pytest tests/integracao  # banco (exige `supabase start`)
 pytest tests/api         # HTTP ponta a ponta (exige `supabase start`)
 pytest --cov             # com relatório de cobertura
 ruff check .             # lint
+
+cd frontend
+npx vitest run           # frontend: 50 testes
+npx tsc --noEmit         # checagem de tipos
 ```
 
 Os testes que dependem do banco se **pulam sozinhos** quando ele não está no ar,
 de modo que `pytest` continua funcionando em uma máquina sem Docker.
+
+> **Os testes escrevem no banco de desenvolvimento.** É consequência de haver um
+> banco local só ([DT-06](docs/01-decisoes-tecnicas.md#dt-06)). `contas` e
+> `transacoes` são truncadas a cada teste, então quem estiver com a aplicação
+> aberta perde as contas que criou — o cadastro sobrevive. `supabase db reset`
+> devolve tudo ao estado do seed.
 
 ---
 
@@ -129,10 +150,16 @@ supabase/
 ├── seed.sql          dois clientes, três contas, para desenvolvimento
 └── config.toml       serviços ativos do stack local
 
-tests/                277 testes
+tests/                283 testes
 ├── test_*.py         domínio, mais checagens de arquitetura por AST
 ├── integracao/       contra o PostgreSQL real
 └── api/              HTTP ponta a ponta: titularidade por rota, JWT e RLS
+
+frontend/
+├── src/api/          tipos do contrato e o único lugar que fala HTTP
+├── src/componentes/  React, um arquivo por peça da tela
+├── src/dinheiro.ts   formatação pt-BR; nunca faz conta
+└── src/estilos/      tokens de cor e espaçamento, CSS próprio
 
 interface.py          CLI — lê, delega ao domínio, formata. Não valida nada.
 docs/                 PRD: fases, decisões técnicas, modelo de dados, API
@@ -158,6 +185,7 @@ Todas detalhadas em [`docs/01-decisoes-tecnicas.md`](docs/01-decisoes-tecnicas.m
 | **Erro tem código** | Nenhum `ValueError` anônimo. Cada falha de regra carrega um código estável que a apresentação consulta — nunca a mensagem em português. |
 | **A conta vem da URL, o dono vem do token** | Toda rota com `conta_id` verifica titularidade num único lugar. Conta alheia responde 404, nunca 403 — um 403 permitiria enumerar as contas do banco. |
 | **A RLS protege o banco, não a API** | O backend conecta como dono e ignora RLS. Ela cobre o acesso direto via PostgREST; contra bug de roteamento quem cobre é o teste por rota. Duas camadas, caminhos diferentes. |
+| **Dinheiro é `string` no frontend** | `Dinheiro = string` em TypeScript. O compilador recusa `conta.saldo + 100`, e o saldo exibido é sempre o que a API devolveu — nunca calculado na tela. |
 
 ---
 
@@ -169,7 +197,7 @@ Todas detalhadas em [`docs/01-decisoes-tecnicas.md`](docs/01-decisoes-tecnicas.m
 | [F1](docs/fase-1-persistencia.md) | PostgreSQL via Supabase local, movimentação atômica em PL/pgSQL | **Concluída** |
 | [F2](docs/fase-2-api-rest.md) | API REST com FastAPI | **Concluída** |
 | [F3](docs/fase-3-autenticacao.md) | Autenticação, RLS e verificação de titularidade | **Concluída** |
-| [F4](docs/fase-4-interface.md) | Interface web em React | A fazer |
+| [F4](docs/fase-4-interface.md) | Interface web em React | **Concluída** |
 | [F5](docs/fase-5-empacotamento.md) | Docker Compose e implantação | A fazer |
 
 ---

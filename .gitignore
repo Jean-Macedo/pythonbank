@@ -14,3 +14,7 @@ htmlcov/
 *.egg-info/
 build/
 dist/
+
+# frontend
+node_modules/
+dist/

@@ -357,3 +357,111 @@ class TestTipoDeContaInvalido:
         )
         assert resposta.status_code == 201
         assert resposta.json()["apelido"] is None
+
+
+class TestErroDeValidacaoDoSchema:
+    """A validação do Pydantic precisa sair no formato de erro da aplicação.
+
+    Sem tradução, ela sai como `{"detail": [...]}` — formato do FastAPI — e o
+    frontend, que espera `{codigo, mensagem}`, exibe "não foi possível completar
+    a operação". A pessoa fica sem saber qual campo recusar. Encontrado testando
+    a interface na mão.
+    """
+
+    def test_campo_invalido_nomeia_o_campo(self, cliente_http):
+        resposta = cliente_http.post(
+            "/auth/registro",
+            json={
+                "nome": "X", "cpf": "52998224725", "email": "x@x.com",
+                "telefone": "11987654321", "data_nascimento": "10/03/1995",
+                "senha": "curta",
+            },
+        )
+        assert resposta.status_code == 422
+        corpo = resposta.json()
+        assert corpo["codigo"] == "DADOS_INVALIDOS"
+        assert "senha" in corpo["mensagem"]
+
+    def test_nunca_devolve_o_formato_do_fastapi(self, cliente_http, cabecalho_jean):
+        """`detail` não pode vazar: o frontend decide pelo `codigo`."""
+        resposta = cliente_http.post(
+            "/api/contas", json={"tipo": 123}, headers=cabecalho_jean
+        )
+        assert resposta.status_code == 422
+        assert "detail" not in resposta.json()
+        assert set(resposta.json()) == {"codigo", "mensagem"}
+
+    def test_varios_campos_invalidos_sao_listados(self, cliente_http):
+        resposta = cliente_http.post(
+            "/auth/registro",
+            json={"nome": "X", "cpf": "1", "email": "x@x.com",
+                  "telefone": "1", "data_nascimento": "10/03/1995", "senha": "a"},
+        )
+        assert resposta.status_code == 422
+        assert resposta.json()["codigo"] == "DADOS_INVALIDOS"
+
+
+class TestTelefoneFormatado:
+    """Escrever telefone com parênteses e hífen é a forma natural.
+
+    O CPF já era normalizado; o telefone não, e recusava `(11) 98765-4321` — o
+    sistema exigindo que a pessoa aprenda o formato interno dele.
+    """
+
+    @pytest.mark.parametrize(
+        "digitado",
+        ["(11) 98765-4321", "11 98765-4321", "11987654321", "11-98765-4321"],
+    )
+    def test_aceita_e_normaliza(self, cliente_http, digitado, banco):
+        import random
+        import uuid
+
+        from tests.api.conftest import SENHA, gerar_cpf
+
+        resposta = cliente_http.post(
+            "/auth/registro",
+            json={
+                "nome": "Pessoa", "cpf": gerar_cpf(random.Random(uuid.uuid4().hex)),
+                "email": f"tel-{uuid.uuid4().hex[:8]}@exemplo-teste.com",
+                "telefone": digitado, "data_nascimento": "10/03/1995",
+                "senha": SENHA,
+            },
+        )
+        assert resposta.status_code == 201, resposta.text
+        guardado = banco.execute(
+            "select telefone from clientes where id = %s",
+            (resposta.json()["cliente_id"],),
+        ).fetchone()[0]
+        assert guardado == "11987654321"
+
+
+class TestCpfComMascara:
+    """O CPF chega da tela com máscara; recusar por comprimento seria dizer
+    "confira o campo CPF" para um CPF correto."""
+
+    @pytest.mark.parametrize(
+        "molde", ["{0}", "{1}.{2}.{3}-{4}", "{1} {2} {3} {4}", "{1}.{2}.{3}/{4}"]
+    )
+    def test_aceita_qualquer_separador(self, cliente_http, banco, molde):
+        import random
+        import uuid
+
+        from tests.api.conftest import SENHA, gerar_cpf
+
+        cru = gerar_cpf(random.Random(uuid.uuid4().hex))
+        digitado = molde.format(cru, cru[:3], cru[3:6], cru[6:9], cru[9:])
+
+        resposta = cliente_http.post(
+            "/auth/registro",
+            json={
+                "nome": "Pessoa", "cpf": digitado,
+                "email": f"cpf-{uuid.uuid4().hex[:8]}@exemplo-teste.com",
+                "telefone": "11987654321", "data_nascimento": "10/03/1995",
+                "senha": SENHA,
+            },
+        )
+        assert resposta.status_code == 201, f"{digitado}: {resposta.text}"
+        guardado = banco.execute(
+            "select cpf from clientes where id = %s", (resposta.json()["cliente_id"],)
+        ).fetchone()[0]
+        assert guardado == cru

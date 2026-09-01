@@ -177,3 +177,17 @@ def conta_do_jean(abrir_conta, jean):
 @pytest.fixture
 def conta_da_maria(abrir_conta, maria):
     return abrir_conta(maria, apelido="Principal", saldo="500.00")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def avisar_sobre_o_banco():
+    """Os testes escrevem no mesmo banco usado no desenvolvimento.
+
+    Isso é consequência da DT-06 — um banco local só — e é aceitável, mas não
+    é invisível: `contas` e `transacoes` são truncadas a cada teste. Quem
+    estiver com a aplicação aberta perde as contas que criou, embora o cadastro
+    sobreviva.
+
+    `supabase db reset` devolve o banco ao estado do seed.
+    """
+    yield

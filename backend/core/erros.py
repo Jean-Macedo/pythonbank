@@ -101,7 +101,7 @@ class EmailInvalido(ErroDeDominio):
 
 class TelefoneInvalido(ErroDeDominio):
     codigo = "TELEFONE_INVALIDO"
-    mensagem_padrao = "Informe um telefone com DDD, apenas números."
+    mensagem_padrao = "Informe um telefone com DDD, com 10 ou 11 dígitos."
 
 
 class CpfInvalido(ErroDeDominio):

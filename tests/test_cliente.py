@@ -61,7 +61,9 @@ class TestTelefone:
         assert novo_cliente(telefone=valido).telefone == valido
 
     @pytest.mark.parametrize(
-        "invalido", ["119876543", "119876543210", "11 98765-4321", "abcdefghijk", None]
+        # `11 98765-4321` saiu daqui: separadores passaram a ser normalizados,
+        # como o CPF já fazia. O que decide é a contagem de dígitos.
+        "invalido", ["119876543", "119876543210", "abcdefghijk", None]
     )
     def test_rejeita_telefone_invalido(self, invalido):
         with pytest.raises(TelefoneInvalido):
@@ -230,3 +232,18 @@ class TestPatrimonio:
 
     def test_cliente_sem_contas_tem_patrimonio_zero(self, cliente):
         assert cliente.patrimonio == Decimal("0.00")
+
+
+class TestTelefoneNormalizado:
+    """O CPF já aceitava formatação; o telefone não, e isso era inconsistente."""
+
+    @pytest.mark.parametrize(
+        "digitado", ["(11) 98765-4321", "11 98765-4321", "11-98765-4321", "11987654321"]
+    )
+    def test_guarda_so_os_digitos(self, digitado):
+        assert novo_cliente(telefone=digitado).telefone == "11987654321"
+
+    @pytest.mark.parametrize("invalido", ["(11) 9", "119", "abc", "", "(  ) -"])
+    def test_recusa_o_que_nao_fecha_dez_ou_onze_digitos(self, invalido):
+        with pytest.raises(TelefoneInvalido):
+            novo_cliente(telefone=invalido)

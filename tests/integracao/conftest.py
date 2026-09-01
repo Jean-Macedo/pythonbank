@@ -44,18 +44,27 @@ def banco():
 
 @pytest.fixture(autouse=True)
 def base_limpa(banco):
-    """Zera as tabelas antes de cada teste e recria um cliente.
+    """Zera contas e lançamentos, preservando os titulares.
+
+    **`clientes` não é truncada de propósito.** Ela era, e isso destruía o
+    cadastro de quem estivesse usando a aplicação enquanto os testes rodavam: o
+    usuário do GoTrue sobrevive à truncagem, o titular não, e a sessão passa a
+    responder CADASTRO_INCOMPLETO sem que a pessoa tenha feito nada.
+
+    O titular de teste é criado sob demanda e sempre o mesmo, identificado pelo
+    `auth_user_id` fixo do seed.
 
     `truncate` dispara apenas gatilhos de statement, então passa pelo
     `transacoes_sem_update`, que é `for each row`. Um `delete` seria recusado —
     e é exatamente essa a garantia de imutabilidade do ledger.
     """
-    banco.execute("truncate transacoes, contas, clientes restart identity cascade")
+    banco.execute("truncate transacoes, contas restart identity cascade")
     banco.execute(
         """
         insert into clientes (auth_user_id, nome, cpf, email, telefone, data_nascimento)
-        values (%s, 'Jean Macedo', '52998224725', 'jean@exemplo.com',
+        values (%s, 'Jean Macedo', '52998224725', 'jean@seed.invalid',
                 '11987654321', '1995-03-10')
+        on conflict (auth_user_id) do nothing
         """,
         (AUTH_JEAN,),
     )
@@ -64,7 +73,14 @@ def base_limpa(banco):
 
 @pytest.fixture
 def cliente_id(banco):
-    return banco.execute("select id from clientes limit 1").fetchone()[0]
+    """O titular de teste, não "o primeiro que aparecer".
+
+    `limit 1` sem filtro pegaria o cadastro de outra pessoa quando o banco de
+    desenvolvimento tem gente de verdade nele.
+    """
+    return banco.execute(
+        "select id from clientes where auth_user_id = %s", (AUTH_JEAN,)
+    ).fetchone()[0]
 
 
 @pytest.fixture
