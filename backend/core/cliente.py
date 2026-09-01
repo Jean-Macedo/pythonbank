@@ -88,11 +88,20 @@ class Cliente:
 
     @telefone.setter
     def telefone(self, numero):
-        if not isinstance(numero, str) or not numero.isdigit():
-            raise TelefoneInvalido("Digite apenas números, com DDD.")
-        if len(numero) not in (10, 11):
+        """Aceita `(11) 98765-4321` e guarda `11987654321`.
+
+        Normaliza como o CPF já fazia: escrever telefone com parênteses e hífen
+        é a forma natural, e recusar isso é o sistema exigindo que a pessoa
+        aprenda o formato interno dele.
+        """
+        if not isinstance(numero, str):
             raise TelefoneInvalido()
-        self._telefone = numero
+        somente_digitos = re.sub(r"\D", "", numero)
+        if not somente_digitos:
+            raise TelefoneInvalido()
+        if len(somente_digitos) not in (10, 11):
+            raise TelefoneInvalido()
+        self._telefone = somente_digitos
 
     @property
     def data_nascimento(self) -> date:

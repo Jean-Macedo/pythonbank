@@ -1,0 +1,62 @@
+/* Vocabulário visual do Banco Jean.
+ *
+ * Entrada e saída de dinheiro têm cores próprias e constantes: num extrato,
+ * distinguir as duas de relance é a única coisa que importa de fato.
+ */
+:root {
+  color-scheme: light dark;
+
+  --ground: #f6f8f3;
+  --surface: #ffffff;
+  --linha: #d3ddd3;
+  --tinta: #151e19;
+  --tinta-2: #3d4b43;
+  --tinta-3: #6b7a70;
+
+  --entrada: #0f5647;
+  --saida: #a6392b;
+  --aviso: #7e5a0e;
+  --foco: #0f5647;
+
+  --e1: 4px;  --e2: 8px;  --e3: 12px;
+  --e4: 16px; --e5: 24px; --e6: 32px;
+
+  --raio: 6px;
+  --fonte: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --fonte-num: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+/* Três estados, não dois. Sem `data-tema` na raiz, vale a preferência do
+ * sistema — que é o padrão e cobre a maioria das pessoas. Com o atributo, a
+ * escolha manual vence nos dois sentidos.
+ *
+ * As variáveis do modo escuro ficam num bloco só, referenciado pelos dois
+ * seletores: definir cor apenas dentro de uma media query faria o tema manual
+ * nunca aplicá-la. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema='claro']) {
+    --ground: #0e1512;
+    --surface: #151e1a;
+    --linha: #2a3831;
+    --tinta: #e2e9e3;
+    --tinta-2: #b3c0b7;
+    --tinta-3: #7f8e84;
+    --entrada: #5fc1a2;
+    --saida: #e58272;
+    --aviso: #d9ae55;
+    --foco: #5fc1a2;
+  }
+}
+
+:root[data-tema='escuro'] {
+  --ground: #0e1512;
+  --surface: #151e1a;
+  --linha: #2a3831;
+  --tinta: #e2e9e3;
+  --tinta-2: #b3c0b7;
+  --tinta-3: #7f8e84;
+  --entrada: #5fc1a2;
+  --saida: #e58272;
+  --aviso: #d9ae55;
+  --foco: #5fc1a2;
+}

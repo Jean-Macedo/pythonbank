@@ -1,0 +1,93 @@
+@import './tokens.css';
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--tinta);
+  font-family: var(--fonte);
+  line-height: 1.5;
+}
+
+button, input, select {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: 2px;
+}
+
+/* Valores monetários alinham por coluna: dígitos de mesma largura. */
+.dinheiro {
+  font-family: var(--fonte-num);
+  font-variant-numeric: tabular-nums;
+}
+
+.app {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: var(--e5) var(--e4) var(--e6);
+}
+
+.cartao {
+  background: var(--surface);
+  border: 1px solid var(--linha);
+  border-radius: var(--raio);
+  padding: var(--e4);
+}
+
+.botao {
+  background: var(--entrada);
+  color: var(--surface);
+  border: 0;
+  border-radius: var(--raio);
+  padding: var(--e2) var(--e4);
+  cursor: pointer;
+}
+.botao:disabled { opacity: .55; cursor: not-allowed; }
+.botao-secundario {
+  background: transparent;
+  color: var(--tinta-2);
+  border: 1px solid var(--linha);
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e1);
+  margin-bottom: var(--e3);
+}
+.campo label { font-size: .82rem; color: var(--tinta-3); }
+.campo input, .campo select {
+  padding: var(--e2) var(--e3);
+  border: 1px solid var(--linha);
+  border-radius: var(--raio);
+  background: var(--surface);
+}
+
+.erro {
+  color: var(--saida);
+  background: color-mix(in srgb, var(--saida) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--saida) 35%, transparent);
+  border-radius: var(--raio);
+  padding: var(--e2) var(--e3);
+  font-size: .9rem;
+  margin: var(--e3) 0;
+}
+
+.sucesso {
+  color: var(--entrada);
+  background: color-mix(in srgb, var(--entrada) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--entrada) 35%, transparent);
+  border-radius: var(--raio);
+  padding: var(--e2) var(--e3);
+  font-size: .9rem;
+  margin: var(--e3) 0;
+}
+
+.linha { display: flex; gap: var(--e3); align-items: center; }
+.entre { display: flex; justify-content: space-between; align-items: center; }
+.abas { display: flex; gap: var(--e2); margin-bottom: var(--e4); }

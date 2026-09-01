@@ -117,9 +117,14 @@ class RegistroIn(Entrada):
     """Cadastro. Validação de verdade é do domínio — aqui só a forma."""
 
     nome: str = Field(min_length=1, max_length=120)
-    cpf: str = Field(min_length=11, max_length=14, examples=["529.982.247-25"])
+    # limites folgados de propósito: quem valida é o domínio, pelos dígitos
+    # verificadores. Recusar aqui por comprimento produziria "confira o campo
+    # CPF" para um CPF correto digitado com máscara diferente da esperada.
+    cpf: str = Field(min_length=11, max_length=20, examples=["529.982.247-25"])
     email: str = Field(max_length=254)
-    telefone: str = Field(pattern=r"^[0-9]{10,11}$", examples=["11987654321"])
+    # sem `pattern`: a normalização e a validação são do domínio, que aceita
+    # `(11) 98765-4321` e devolve erro com código próprio se não fechar
+    telefone: str = Field(max_length=20, examples=["(11) 98765-4321"])
     data_nascimento: str = Field(examples=["10/03/1995"])
     senha: str = Field(
         min_length=8,

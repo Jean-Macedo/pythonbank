@@ -8,6 +8,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -77,6 +78,56 @@ async def tratar_erro_de_dominio(request: Request, erro: ErroDeDominio):
     return JSONResponse(
         status_code=STATUS_POR_CODIGO.get(erro.codigo, STATUS_PADRAO),
         content=ErroOut(codigo=erro.codigo, mensagem=erro.mensagem).model_dump(),
+    )
+
+
+#: Nome do campo como a pessoa o conhece na tela, não como o schema o chama.
+ROTULO_DO_CAMPO = {
+    "nome": "nome",
+    "cpf": "CPF",
+    "email": "e-mail",
+    "telefone": "telefone",
+    "data_nascimento": "data de nascimento",
+    "senha": "senha",
+    "valor": "valor",
+    "tipo": "tipo de conta",
+    "apelido": "apelido",
+    "agencia_destino": "agência de destino",
+    "numero_destino": "conta de destino",
+    "limite": "limite",
+    "cursor": "paginação",
+}
+
+
+@app.exception_handler(RequestValidationError)
+async def tratar_erro_de_validacao(request: Request, erro: RequestValidationError):
+    """Converte a validação do Pydantic para o formato de erro da aplicação.
+
+    Sem isto, toda falha de schema sai como `{"detail": [...]}` — formato do
+    FastAPI, que o frontend não reconhece e exibe como "não foi possível
+    completar a operação". A pessoa fica sem saber qual campo recusar.
+    """
+    problemas = erro.errors()
+    campos = []
+    for problema in problemas:
+        partes = [p for p in problema["loc"] if p not in ("body", "query", "path")]
+        if partes:
+            nome = str(partes[-1])
+            campos.append(ROTULO_DO_CAMPO.get(nome, nome))
+
+    if campos:
+        unicos = list(dict.fromkeys(campos))
+        alvo = unicos[0] if len(unicos) == 1 else ", ".join(unicos)
+        mensagem = f"Confira o campo {alvo}." if len(unicos) == 1 else (
+            f"Confira estes campos: {alvo}."
+        )
+    else:
+        mensagem = "Alguns dados não estão no formato esperado."
+
+    log.info("validação recusada: %s", problemas)
+    return JSONResponse(
+        status_code=422,
+        content=ErroOut(codigo="DADOS_INVALIDOS", mensagem=mensagem).model_dump(),
     )
 
 

@@ -98,3 +98,44 @@ return corpo;
 de 64 bits. Os valores chegam como string exatamente por isso, e a única
 proteção real é a disciplina de nunca fazer conta com eles no cliente — o saldo
 exibido é sempre o que a API devolveu, nunca um cálculo local.
+
+---
+
+## Emendas aplicadas na execução
+
+### TypeScript no lugar de `.jsx`
+
+O PRD previa JavaScript. Com TypeScript, `Dinheiro` é um alias de `string` e o
+compilador **recusa** `conta.saldo + 100` antes de o código existir — a defesa da
+[DT-01](01-decisoes-tecnicas.md#dt-01) na borda deixa de depender de disciplina.
+
+### Um tipo próprio para erro de validação local
+
+O componente `Erro` começou exibindo mensagem só de `ErroDaApi`. Consequência
+descoberta por teste: as validações do próprio formulário — "informe um valor
+maior que zero", justamente a mensagem mais útil — viravam "algo deu errado".
+
+Exibir a mensagem de qualquer `Error` resolveria, mas faria o texto de um
+`TypeError` de defeito interno aparecer na tela do usuário. A saída foi
+`ErroDeValidacao`, um tipo próprio: o componente sabe exatamente quais mensagens
+pode mostrar.
+
+### `erasableSyntaxOnly`
+
+O template do Vite liga essa opção, que proíbe propriedades declaradas no
+construtor (`constructor(readonly x: string)`). Os campos de `ErroDaApi` são
+declarados explicitamente por isso.
+
+### O painel de saldo tem nome acessível
+
+`aria-label="Saldo da conta ativa"`. Surgiu de um teste que falhava por encontrar
+o mesmo valor duas vezes — o saldo aparece no seletor de contas **e** no painel.
+Em vez de tornar a consulta frágil, o componente ganhou identidade, o que também
+o torna navegável por leitor de tela.
+
+### Testes de componente com backend dublê, contrato verificado no real
+
+`vitest` com Testing Library cobre o comportamento da interface; as operações da
+API são substituídas por dublês. Isso não verificaria que o contrato está certo,
+então o formato foi conferido contra a API de verdade: `saldo` chega como
+`String`, e o CORS libera `http://localhost:5173`.
