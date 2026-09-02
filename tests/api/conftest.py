@@ -1,9 +1,18 @@
-"""Testes da API contra o banco real e o GoTrue real.
+"""Testes da API contra o banco de desenvolvimento e o GoTrue real.
 
 Não uso banco falso nem token forjado: o valor destes testes está justamente em
 verificar a tradução entre HTTP, JWT, domínio e PostgreSQL. Um repositório dublê
 testaria só o FastAPI conversando consigo mesmo, e um token assinado por nós
 testaria a nossa própria suposição sobre o formato, não o do Supabase.
+
+**Por que não vão para o banco separado.** Os testes de integração migraram para
+`banco_jean_teste`; estes não podem. Eles precisam de JWT assinado de verdade, e
+o GoTrue escreve em `auth.users` do banco principal — o PostgreSQL não faz
+foreign key entre bancos, então o cadastro quebraria.
+
+A alternativa é limpar apenas o que a própria sessão criou, e é o que
+`base_limpa` faz. Nada de `truncate`: ele apagaria as contas de quem estivesse
+com a aplicação aberta.
 """
 
 import contextlib
@@ -14,9 +23,18 @@ import pytest
 
 psycopg = pytest.importorskip("psycopg", reason="psycopg não instalado")
 
+import os  # noqa: E402
+
 from fastapi.testclient import TestClient  # noqa: E402
 
-from tests.integracao.conftest import DSN, conectar  # noqa: E402
+#: Banco de desenvolvimento — o mesmo que a aplicação usa, de propósito.
+DSN = os.environ.get(
+    "BANCO_TESTE_DSN", "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+)
+
+
+def conectar():
+    return psycopg.connect(DSN, autocommit=True, connect_timeout=5)
 
 SENHA = "senha-de-teste-bem-longa"
 
@@ -120,13 +138,40 @@ def banco():
 
 @pytest.fixture(autouse=True)
 def base_limpa(banco, usuarios):
-    """Zera contas e lançamentos, preservando os titulares da sessão.
+    """Apaga apenas contas e lançamentos **dos titulares desta sessão**.
 
-    `clientes` não é truncada: os titulares apontam para usuários do GoTrue, que
-    vivem fora do banco. Recriá-los a cada teste exigiria recriar os usuários
-    também — e os tokens junto.
+    Não usa `truncate`. Estes testes rodam no banco de desenvolvimento — não há
+    como movê-los — e truncar apagaria as contas de quem estivesse com a
+    aplicação aberta. A limpeza é escopada pelos `auth_user_id` criados aqui.
+
+    `session_replication_role = replica` desliga os gatilhos pela duração da
+    transação, o que é necessário porque `transacoes_sem_update` recusa `delete`
+    — a imutabilidade do ledger, que os testes precisam contornar para limpar o
+    que eles mesmos criaram.
     """
-    banco.execute("truncate transacoes, contas restart identity cascade")
+    ids = tuple(dado["auth_user_id"] for dado in usuarios.values())
+    banco.execute("set session_replication_role = replica")
+    try:
+        banco.execute(
+            """
+            delete from transacoes where conta_id in (
+                select c.id from contas c
+                  join clientes cl on cl.id = c.cliente_id
+                 where cl.auth_user_id = any(%s::uuid[])
+            )
+            """,
+            (list(ids),),
+        )
+        banco.execute(
+            """
+            delete from contas where cliente_id in (
+                select id from clientes where auth_user_id = any(%s::uuid[])
+            )
+            """,
+            (list(ids),),
+        )
+    finally:
+        banco.execute("set session_replication_role = origin")
     yield
 
 

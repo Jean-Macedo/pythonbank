@@ -105,25 +105,25 @@ transferência e extrato paginado.
 ### Os testes
 
 ```bash
-pytest                   # backend: 283 testes
+pytest                   # backend: 302 testes
 pytest tests/integracao  # banco (exige `supabase start`)
 pytest tests/api         # HTTP ponta a ponta (exige `supabase start`)
 pytest --cov             # com relatório de cobertura
 ruff check .             # lint
 
 cd frontend
-npx vitest run           # frontend: 50 testes
+npx vitest run           # frontend: 86 testes
 npx tsc --noEmit         # checagem de tipos
 ```
 
 Os testes que dependem do banco se **pulam sozinhos** quando ele não está no ar,
 de modo que `pytest` continua funcionando em uma máquina sem Docker.
 
-> **Os testes escrevem no banco de desenvolvimento.** É consequência de haver um
-> banco local só ([DT-06](docs/01-decisoes-tecnicas.md#dt-06)). `contas` e
-> `transacoes` são truncadas a cada teste, então quem estiver com a aplicação
-> aberta perde as contas que criou — o cadastro sobrevive. `supabase db reset`
-> devolve tudo ao estado do seed.
+> **Rodar a suíte não destrói seus dados.** Os testes de integração usam um banco
+> separado, `banco_jean_teste`, criado e migrado sozinho na primeira execução. Os
+> de API precisam do banco principal — eles dependem de JWT assinado de verdade,
+> e o GoTrue escreve no `auth.users` de lá — mas limpam apenas os titulares que
+> eles mesmos criam.
 
 ---
 
@@ -150,9 +150,10 @@ supabase/
 ├── seed.sql          dois clientes, três contas, para desenvolvimento
 └── config.toml       serviços ativos do stack local
 
-tests/                283 testes
+tests/                302 testes
 ├── test_*.py         domínio, mais checagens de arquitetura por AST
-├── integracao/       contra o PostgreSQL real
+├── banco_de_teste.py cria e migra o banco isolado dos testes
+├── integracao/       contra `banco_jean_teste`, separado do desenvolvimento
 └── api/              HTTP ponta a ponta: titularidade por rota, JWT e RLS
 
 frontend/
