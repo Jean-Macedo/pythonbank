@@ -12,7 +12,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from backend.api import auth, contas, extrato, movimentacao
+from backend.api import auth, contas, estorno, extrato, movimentacao
 from backend.api.deps import NaoAutenticado, get_cliente_atual
 from backend.config import configuracao
 from backend.core.erros import ErroDeDominio
@@ -31,6 +31,8 @@ STATUS_POR_CODIGO = {
     "CADASTRO_INCOMPLETO": 403,
     "EMAIL_JA_CADASTRADO": 409,
     "CONTA_NAO_ENCONTRADA": 404,
+    "LANCAMENTO_NAO_ENCONTRADO": 404,
+    "JA_ESTORNADO": 409,
     "CPF_DUPLICADO": 409,
     "APELIDO_DUPLICADO": 409,
 }
@@ -201,5 +203,6 @@ app.include_router(auth.router)
 app.include_router(contas.router)
 app.include_router(movimentacao.router)
 app.include_router(extrato.router)
+app.include_router(estorno.router)
 
 __all__ = ["app", "NaoAutenticado"]

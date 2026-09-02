@@ -17,6 +17,8 @@ export type TipoTransacao =
   | 'saque'
   | 'transferencia_saida'
   | 'transferencia_entrada'
+  | 'estorno_entrada'
+  | 'estorno_saida'
 
 export interface Cliente {
   id: number
@@ -43,6 +45,10 @@ export interface Lancamento {
   saldo_apos: Dinheiro
   contraparte: string | null
   data_hora: string
+  /** Lançamento que este desfaz. */
+  estorno_de: number | null
+  /** Presente quando este já foi desfeito — a tela não oferece estornar de novo. */
+  estornado_por: number | null
 }
 
 export interface Extrato {

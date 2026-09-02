@@ -21,10 +21,20 @@ class TipoTransacao(StrEnum):
     SAQUE = "saque"
     TRANSFERENCIA_SAIDA = "transferencia_saida"
     TRANSFERENCIA_ENTRADA = "transferencia_entrada"
+    ESTORNO_ENTRADA = "estorno_entrada"
+    ESTORNO_SAIDA = "estorno_saida"
 
     @property
     def e_entrada(self) -> bool:
-        return self in (TipoTransacao.DEPOSITO, TipoTransacao.TRANSFERENCIA_ENTRADA)
+        return self in (
+            TipoTransacao.DEPOSITO,
+            TipoTransacao.TRANSFERENCIA_ENTRADA,
+            TipoTransacao.ESTORNO_ENTRADA,
+        )
+
+    @property
+    def e_estorno(self) -> bool:
+        return self in (TipoTransacao.ESTORNO_ENTRADA, TipoTransacao.ESTORNO_SAIDA)
 
     @property
     def sinal(self) -> int:

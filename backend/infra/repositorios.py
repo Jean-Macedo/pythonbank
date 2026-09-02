@@ -65,6 +65,10 @@ class LancamentoLido:
     saldo_apos: Decimal
     contraparte: str | None
     data_hora: datetime
+    estorno_de: int | None
+    """Lançamento que este estorna. O extrato usa para marcar os dois lados."""
+    estornado_por: int | None
+    """Preenchido quando **este** já foi estornado — evita oferecer de novo."""
 
 
 def traduzir_erro(erro: psycopg.errors.RaiseException) -> ErroDeDominio:
@@ -254,6 +258,17 @@ class ContaRepo:
     ) -> Movimentacao:
         return self._movimentar("transferir", origem_id, destino_id, valor)
 
+    def estornar(
+        self, transacao_id: int, conta_id: int, janela_dias: int | None
+    ) -> Movimentacao:
+        """Cria o lançamento de sinal oposto; o original não é tocado.
+
+        A `conta_id` vai junto e é reconferida dentro da função: sem isso, quem
+        soubesse o id de um lançamento alheio o estornaria passando o número
+        direto.
+        """
+        return self._movimentar("estornar", transacao_id, conta_id, janela_dias)
+
     # ----------------------------------------------------------------- extrato
 
     def extrato(
@@ -277,7 +292,10 @@ class ContaRepo:
             return con.cursor(row_factory=class_row(LancamentoLido)).execute(
                 f"""
                 select t.id, t.tipo, t.valor, t.saldo_apos,
-                       cp.agencia || '/' || cp.numero as contraparte, t.data_hora
+                       cp.agencia || '/' || cp.numero as contraparte, t.data_hora,
+                       t.estorno_de,
+                       (select e.id from transacoes e
+                         where e.estorno_de = t.id) as estornado_por
                   from transacoes t
                   left join contas cp on cp.id = t.contraparte_id
                  where {condicao}

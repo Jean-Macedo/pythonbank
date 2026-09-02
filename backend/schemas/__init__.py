@@ -73,6 +73,10 @@ class LancamentoOut(BaseModel):
     saldo_apos: ValorSaida
     contraparte: str | None
     data_hora: datetime
+    estorno_de: int | None = None
+    """Aponta para o lançamento que este desfaz."""
+    estornado_por: int | None = None
+    """Presente quando este já foi desfeito — a tela não oferece estornar de novo."""
 
 
 class ExtratoOut(BaseModel):
