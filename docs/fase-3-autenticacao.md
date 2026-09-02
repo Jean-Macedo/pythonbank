@@ -42,7 +42,7 @@ A verificação de titularidade da F2 cobre o caminho da API. A RLS cobre o aces
 | **RN-3.6** | Função auxiliar `cliente_atual()` resolve `auth.uid()` para `clientes.id`, usada por todas as políticas. | P0 |
 | **RN-3.7** | Políticas de `select` restritas ao próprio cliente. **Nenhuma política concede `insert`, `update` ou `delete` direto** em `contas` ou `transacoes` — escrita só pelas funções RPC. | P0 |
 | **RN-3.8** | A `service_role key` existe apenas no backend. O frontend nunca recebe chave de banco de nenhum tipo. | P0 |
-| **RNF-3.9** | Rate limit no login e nos endpoints de movimentação. | P2 |
+| **RNF-3.9** | Rate limit no login e nos endpoints de movimentação. | P2 ✓ |
 
 ### Referência — políticas
 
@@ -147,6 +147,24 @@ teste para exatamente esse caminho.
 a API. Concedê-las a `authenticated` permitiria a qualquer portador de token
 depositar e sacar em conta alheia passando o id pela RPC. O `execute` foi revogado
 de `public`, `anon` e `authenticated`; só o backend, como dono, as invoca.
+
+### RNF-3.9 — limite de requisições
+
+Feito depois das fases, e detalhado em [Limite de requisições](08-limite.md).
+
+Duas proteções distintas: força bruta no login (6 por 15 min, por origem **e**
+por e-mail) e automação descontrolada na movimentação (30 por minuto, por
+titular). Resposta `429` com `Retry-After`.
+
+Duas decisões que valem registrar:
+
+**O contador vive na memória do processo.** É honesto para um container, e
+insuficiente para várias réplicas — cada uma contaria por si. A interface
+`Contador` existe para que trocar por Redis não toque em nenhuma rota.
+
+**`X-Forwarded-For` só é lido com `CONFIAR_EM_PROXY=true`.** Confiar por padrão
+seria pior que não ter limite: forjar o cabeçalho daria uma chave nova a cada
+requisição, desligando a proteção enquanto ela aparenta existir.
 
 ### A `DT-04` foi corrigida, não cumprida
 

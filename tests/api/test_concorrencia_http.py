@@ -26,7 +26,12 @@ class TestComprovanteDaTransacao:
     """O `transacao_id` devolvido tem de ser o do lançamento daquela requisição."""
 
     def test_ids_devolvidos_sao_todos_distintos(
-        self, cliente_http, cabecalho_jean, conta_do_jean, banco
+        self,
+        cliente_http,
+        cabecalho_jean,
+        conta_do_jean,
+        banco,
+        sem_limite_de_movimentacao,
     ):
         """Antes da correção: 20 requisições devolviam 3 ids distintos.
 
@@ -57,7 +62,12 @@ class TestComprovanteDaTransacao:
         assert set(ids) <= reais, "algum id devolvido não corresponde a um lançamento"
 
     def test_id_devolvido_aponta_para_o_proprio_valor(
-        self, cliente_http, cabecalho_jean, conta_do_jean, banco
+        self,
+        cliente_http,
+        cabecalho_jean,
+        conta_do_jean,
+        banco,
+        sem_limite_de_movimentacao,
     ):
         """Não basta ser distinto: tem de ser o lançamento certo."""
 
@@ -82,7 +92,13 @@ class TestComprovanteDaTransacao:
 
 class TestLimiteDeContas:
     def test_aberturas_simultaneas_nao_furam_o_limite(
-        self, cliente_http, cabecalho_jean, abrir_conta, jean, banco
+        self,
+        cliente_http,
+        cabecalho_jean,
+        abrir_conta,
+        jean,
+        banco,
+        sem_limite_de_movimentacao,
     ):
         """Antes da correção: limite 5, 10 aberturas simultâneas, 14 contas.
 
@@ -110,7 +126,12 @@ class TestLimiteDeContas:
         assert ativas == Cliente.LIMITE_DE_CONTAS
 
     def test_apelido_duplicado_sob_concorrencia(
-        self, cliente_http, cabecalho_jean, jean, banco
+        self,
+        cliente_http,
+        cabecalho_jean,
+        jean,
+        banco,
+        sem_limite_de_movimentacao,
     ):
         """Só uma conta pode ficar com o apelido, mesmo em disputa."""
 
@@ -135,7 +156,13 @@ class TestLimiteDeContas:
 
 class TestSaquesSimultaneos:
     def test_saldo_nunca_fica_negativo_pela_api(
-        self, cliente_http, cabecalho_jean, abrir_conta, jean, banco
+        self,
+        cliente_http,
+        cabecalho_jean,
+        abrir_conta,
+        jean,
+        banco,
+        sem_limite_de_movimentacao,
     ):
         """Saldo para 10 saques, 20 requisições simultâneas."""
         conta = abrir_conta(jean, apelido="Disputada", saldo="10.00")
@@ -158,7 +185,12 @@ class TestSaquesSimultaneos:
         assert saldo == Decimal("0.00")
 
     def test_reconciliacao_intacta_apos_disputa_via_api(
-        self, cliente_http, cabecalho_jean, conta_do_jean, banco
+        self,
+        cliente_http,
+        cabecalho_jean,
+        conta_do_jean,
+        banco,
+        sem_limite_de_movimentacao,
     ):
         """CA-02 continua valendo quando a disputa vem pela API."""
 

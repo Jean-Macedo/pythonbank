@@ -159,6 +159,37 @@ def usuarios(cliente_http):
             autenticacao.remover_usuario(auth_id)
 
 
+@pytest.fixture(autouse=True)
+def limite_zerado():
+    """Zera o contador de requisições antes de cada caso.
+
+    O limitador é único do processo — de propósito, senão não contaria nada — e
+    isso o torna estado compartilhado entre testes. Sem zerar, um caso gastaria
+    a cota do seguinte e a suíte passaria a depender da ordem em que roda.
+    """
+    from backend.api import limite
+
+    limite.limitador.contador.zerar()
+    yield
+
+
+@pytest.fixture
+def sem_limite_de_movimentacao(monkeypatch):
+    """Afrouxa o limite para os testes que fazem rajada de propósito.
+
+    Os testes de concorrência disparam dezenas de requisições simultâneas para
+    provar a atomicidade **do banco** — não o limitador. Deixar o limite de
+    produção valer ali faria o teste medir a coisa errada, e escondê-lo faria o
+    limite deixar de ser testado. Por isso é explícito, e só onde faz sentido.
+    """
+    from backend.api import limite
+
+    monkeypatch.setattr(
+        limite, "MOVIMENTACAO_POR_TITULAR",
+        limite.Regra(quantidade=10_000, janela_segundos=60),
+    )
+
+
 @pytest.fixture
 def banco():
     with conectar() as con:

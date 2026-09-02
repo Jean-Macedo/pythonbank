@@ -7,6 +7,7 @@ o resultado. A atomicidade é do PostgreSQL (DT-02).
 from fastapi import APIRouter, Depends, status
 
 from backend.api.deps import get_conta_do_cliente, get_conta_repo
+from backend.api.limite import limitar_movimentacao
 from backend.core.erros import ContaNaoEncontrada, ContasIguais
 from backend.infra.repositorios import ContaLida, ContaRepo
 from backend.schemas import ResultadoTransacao, TransferenciaIn, ValorIn
@@ -24,6 +25,8 @@ def depositar(
     conta: ContaLida = Depends(get_conta_do_cliente),
     repo: ContaRepo = Depends(get_conta_repo),
 ):
+    limitar_movimentacao(conta.cliente_id)
+
     resultado = repo.depositar(conta.id, entrada.valor)
     return ResultadoTransacao(
         saldo_atual=resultado.saldo, transacao_id=resultado.transacao_id
@@ -45,6 +48,8 @@ def sacar(
     Checar aqui antes de chamar abriria uma janela entre a verificação e a
     escrita — exatamente o defeito que a DT-02 existe para eliminar.
     """
+    limitar_movimentacao(conta.cliente_id)
+
     resultado = repo.sacar(conta.id, entrada.valor)
     return ResultadoTransacao(
         saldo_atual=resultado.saldo, transacao_id=resultado.transacao_id
@@ -65,6 +70,8 @@ def transferir(
 
     O cliente não conhece — nem deveria adivinhar — os ids de contas alheias.
     """
+    limitar_movimentacao(conta.cliente_id)
+
     destino = repo.buscar_por_agencia_numero(
         entrada.agencia_destino, entrada.numero_destino
     )
