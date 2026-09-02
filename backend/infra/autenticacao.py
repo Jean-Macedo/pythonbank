@@ -107,7 +107,7 @@ def validar_token(token: str) -> Identidade:
         chave.key,
         algorithms=ALGORITMOS,
         audience=AUDIENCIA,
-        issuer=f"{configuracao().supabase_url}/auth/v1",
+        issuer=configuracao().emissor_esperado,
         options={"require": ["exp", "sub", "iss"]},
     )
     return Identidade(auth_user_id=conteudo["sub"], email=conteudo.get("email"))

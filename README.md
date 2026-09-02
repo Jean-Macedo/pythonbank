@@ -7,8 +7,9 @@ O projeto está sendo levado de um script de terminal para uma arquitetura de
 serviços com ledger transacional, API autenticada e interface web. O plano
 completo está em [`docs/`](docs/).
 
-**Estado atual: Fase 4 concluída** — domínio isolado, persistência transacional,
-API autenticada por JWT e interface web em React.
+**Estado atual: todas as fases concluídas** — domínio isolado, persistência
+transacional, API autenticada por JWT, interface web em React e empacotamento
+em Docker.
 
 ---
 
@@ -102,10 +103,29 @@ npm run dev          # http://localhost:5173
 Requer a API no ar. Cadastro, login, várias contas, depósito, saque,
 transferência e extrato paginado.
 
+### Tudo de uma vez, por Docker
+
+```bash
+supabase start              # o banco continua no host
+cp .env.example .env        # preencha as chaves do `supabase status`
+docker compose up -d
+```
+
+Interface em `http://localhost:5173`, API em `http://localhost:8000`.
+
+O `.env` fica com `127.0.0.1` mesmo: o `docker-compose.yml` sobrescreve os
+endereços com `host.docker.internal`. Editar o arquivo quebraria os testes
+locais, porque esse nome só resolve dentro de container.
+
+> **O endereço da API é injetado na subida**, não na compilação. O Vite embute
+> `import.meta.env` no bundle, então `VITE_API_URL` como variável do container
+> não teria efeito. O entrypoint do nginx reescreve `config.js` a partir de
+> `API_URL` — assim a mesma imagem serve qualquer ambiente.
+
 ### Os testes
 
 ```bash
-pytest                   # backend: 302 testes
+pytest                   # backend: 317 testes
 pytest tests/integracao  # banco (exige `supabase start`)
 pytest tests/api         # HTTP ponta a ponta (exige `supabase start`)
 pytest --cov             # com relatório de cobertura
@@ -116,8 +136,9 @@ npx vitest run           # frontend: 86 testes
 npx tsc --noEmit         # checagem de tipos
 ```
 
-Os testes que dependem do banco se **pulam sozinhos** quando ele não está no ar,
-de modo que `pytest` continua funcionando em uma máquina sem Docker.
+Os testes que dependem do banco se **pulam sozinhos** quando ele não está no ar
+— ou quando não há `.env`. Num clone recém-feito, `pytest` roda os 185 testes de
+domínio e ignora o resto, sem erro.
 
 > **Rodar a suíte não destrói seus dados.** Os testes de integração usam um banco
 > separado, `banco_jean_teste`, criado e migrado sozinho na primeira execução. Os
@@ -150,7 +171,7 @@ supabase/
 ├── seed.sql          dois clientes, três contas, para desenvolvimento
 └── config.toml       serviços ativos do stack local
 
-tests/                302 testes
+tests/                317 testes
 ├── test_*.py         domínio, mais checagens de arquitetura por AST
 ├── banco_de_teste.py cria e migra o banco isolado dos testes
 ├── integracao/       contra `banco_jean_teste`, separado do desenvolvimento
@@ -161,6 +182,9 @@ frontend/
 ├── src/componentes/  React, um arquivo por peça da tela
 ├── src/dinheiro.ts   formatação pt-BR; nunca faz conta
 └── src/estilos/      tokens de cor e espaçamento, CSS próprio
+
+docker-compose.yml    backend e frontend; o banco fica com o Supabase CLI
+.github/workflows/    CI: domínio, integração, frontend e imagens
 
 interface.py          CLI — lê, delega ao domínio, formata. Não valida nada.
 docs/                 PRD: fases, decisões técnicas, modelo de dados, API
@@ -199,7 +223,7 @@ Todas detalhadas em [`docs/01-decisoes-tecnicas.md`](docs/01-decisoes-tecnicas.m
 | [F2](docs/fase-2-api-rest.md) | API REST com FastAPI | **Concluída** |
 | [F3](docs/fase-3-autenticacao.md) | Autenticação, RLS e verificação de titularidade | **Concluída** |
 | [F4](docs/fase-4-interface.md) | Interface web em React | **Concluída** |
-| [F5](docs/fase-5-empacotamento.md) | Docker Compose e implantação | A fazer |
+| [F5](docs/fase-5-empacotamento.md) | Docker Compose e implantação | **Concluída** |
 
 ---
 

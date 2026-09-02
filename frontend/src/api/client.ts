@@ -13,7 +13,24 @@
 
 import type { CorpoDeErro, Sessao } from './tipos'
 
-const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+declare global {
+  interface Window {
+    __BANCO_CONFIG__?: { apiUrl?: string }
+  }
+}
+
+/**
+ * Endereço da API, em ordem de precedência.
+ *
+ * `config.js` vem primeiro porque é o único que funciona em imagem Docker: o
+ * Vite embute `import.meta.env` na compilação, então a mesma imagem serviria
+ * sempre o mesmo endereço. O entrypoint do container reescreve `config.js` na
+ * subida, e aí um único artefato atende desenvolvimento, homologação e produção.
+ */
+export const BASE =
+  window.__BANCO_CONFIG__?.apiUrl ||
+  import.meta.env.VITE_API_URL ||
+  'http://localhost:8000'
 
 export class ErroDaApi extends Error {
   // campos declarados explicitamente: o template do Vite liga

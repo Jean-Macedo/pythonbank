@@ -1,0 +1,58 @@
+# Banco Jean — backend e frontend.
+#
+# O PostgreSQL **não** está aqui de propósito. Quem o sobe é o Supabase CLI
+# (`supabase start`), que já roda os próprios containers. Declarar um segundo
+# banco tornaria ambíguo qual deles recebe as migrações — e essa ambiguidade
+# custa caro no dia em que alguém migrar o errado.
+#
+# Sem a chave `version:`: obsoleta no Compose v2, e emite aviso.
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      # Estas sobrescrevem o `.env`, que fica com `127.0.0.1` para uso local.
+      # Sem isto, rodar o compose exigiria editar o `.env` — e depois desfazer a
+      # edição para rodar os testes, que falham contra `host.docker.internal`
+      # porque esse nome só resolve dentro de container.
+      DATABASE_URL: "postgresql://postgres:postgres@host.docker.internal:54322/postgres"
+      SUPABASE_URL: "http://host.docker.internal:54321"
+
+      # O GoTrue carimba nos tokens o endereço que ele conhece; o backend em
+      # container o alcança por outro. Sem separar os dois, o login funciona e
+      # toda requisição autenticada seguinte devolve 401.
+      SUPABASE_ISSUER: "http://127.0.0.1:54321"
+
+      # No Compose, o frontend é servido pelo nginx na 5173; sem esta origem o
+      # navegador bloqueia toda requisição.
+      CORS_ORIGINS: "http://localhost:5173"
+    extra_hosts:
+      # O Supabase roda no host, não nesta rede. Sem isto, `127.0.0.1` dentro do
+      # container apontaria para o próprio container.
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:80"
+    environment:
+      # Lido pelo entrypoint, que reescreve `config.js` na subida.
+      #
+      # NÃO é `VITE_API_URL`: o Vite embute `import.meta.env` na compilação, e
+      # uma variável de ambiente do container não teria efeito nenhum — falharia
+      # em silêncio, que é o pior modo de falhar.
+      #
+      # O endereço é resolvido pelo **navegador**, não pelo container: por isso
+      # `localhost`, e não o nome do serviço.
+      API_URL: "http://localhost:8000"
+    depends_on:
+      backend:
+        # `depends_on` sozinho espera o container iniciar, não ficar pronto. Com
+        # `service_healthy`, o frontend só sobe depois que o backend responde —
+        # e o healthcheck dele consulta o banco, não só o processo.
+        condition: service_healthy
+    restart: unless-stopped

@@ -34,6 +34,13 @@ class Configuracao(BaseSettings):
         default="http://127.0.0.1:54321",
         description="Gateway do Supabase. O JWKS e o GoTrue ficam sob /auth/v1.",
     )
+    supabase_issuer: str = Field(
+        default="",
+        description="Emissor esperado no JWT. Vazio significa derivar de "
+        "`supabase_url`, o que só vale quando o backend alcança o Auth pelo "
+        "mesmo endereço que o GoTrue carimba nos tokens.",
+    )
+
     supabase_anon_key: str = Field(
         default="",
         description="Chave pública, usada como `apikey` nas rotas de auth. "
@@ -61,6 +68,22 @@ class Configuracao(BaseSettings):
         if isinstance(valor, str) and not valor.strip().startswith("["):
             return [item.strip() for item in valor.split(",") if item.strip()]
         return valor
+
+    @property
+    def emissor_esperado(self) -> str:
+        """O `iss` que os tokens devem trazer.
+
+        **Não é o mesmo que `supabase_url`.** Um é identidade pública — o que o
+        GoTrue carimba — e o outro é endereço de rede, por onde este processo
+        alcança o serviço. Em container os dois divergem: o GoTrue estampa
+        `127.0.0.1:54321` e o backend chega nele por `host.docker.internal`.
+
+        Tratá-los como um só faz toda requisição autenticada falhar com 401,
+        depois de o login ter funcionado — sintoma confuso, porque o token está
+        perfeito.
+        """
+        base = self.supabase_issuer or self.supabase_url
+        return f"{base.rstrip('/')}/auth/v1" if not base.endswith("/auth/v1") else base
 
     @property
     def e_producao(self) -> bool:
