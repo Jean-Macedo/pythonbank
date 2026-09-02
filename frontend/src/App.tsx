@@ -104,7 +104,11 @@ export function App() {
             outrasContas={contas.filter((c) => c.id !== ativa.id)}
             aoConcluir={aoConcluirTransacao}
           />
-          <ListaDeExtrato contaId={ativa.id} versao={versao} />
+          <ListaDeExtrato
+            contaId={ativa.id}
+            versao={versao}
+            aoEstornar={aoConcluirTransacao}
+          />
           <GerenciarConta conta={ativa} aoMudar={() => void recarregar()} />
         </>
       )}

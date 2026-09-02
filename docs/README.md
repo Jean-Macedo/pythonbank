@@ -42,6 +42,12 @@ da anterior esteja inteiramente marcada.
 **F3 bloqueia F4.** Um frontend escrito contra endpoints sem autenticação
 embute suposições que precisam ser desfeitas depois.
 
+### Depois das fases
+
+| Documento | Conteúdo |
+| --- | --- |
+| [07 — Estorno](07-estorno.md) | Lançamento de sinal oposto; o original permanece |
+
 ### Apêndices
 
 - [Riscos](riscos.md)

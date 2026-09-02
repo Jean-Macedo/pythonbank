@@ -51,6 +51,41 @@ class ContasIguais(ErroDeDominio):
     mensagem_padrao = "Escolha uma conta de destino diferente da de origem."
 
 
+class LancamentoNaoEncontrado(ErroDeDominio):
+    codigo = "LANCAMENTO_NAO_ENCONTRADO"
+    mensagem_padrao = "Lançamento não encontrado."
+
+
+class JaEstornado(ErroDeDominio):
+    codigo = "JA_ESTORNADO"
+    mensagem_padrao = "Este lançamento já foi estornado."
+
+
+class EstornoDeEstorno(ErroDeDominio):
+    codigo = "ESTORNO_DE_ESTORNO"
+    mensagem_padrao = "Um estorno não pode ser estornado."
+
+
+class EstornoNaoPermitido(ErroDeDominio):
+    codigo = "ESTORNO_NAO_PERMITIDO"
+    mensagem_padrao = (
+        "Só quem enviou pode estornar uma transferência. "
+        "Para devolver, faça uma transferência de volta."
+    )
+
+
+class ForaDaJanelaDeEstorno(ErroDeDominio):
+    codigo = "FORA_DA_JANELA_DE_ESTORNO"
+    mensagem_padrao = "O prazo para estornar este lançamento já passou."
+
+
+class SaldoInsuficienteNoDestino(ErroDeDominio):
+    codigo = "SALDO_INSUFICIENTE_NO_DESTINO"
+    mensagem_padrao = (
+        "A conta de destino não tem saldo para devolver o valor."
+    )
+
+
 # --------------------------------------------------------------------------
 # Contas
 # --------------------------------------------------------------------------

@@ -73,6 +73,12 @@ export const transferir = (
     },
   })
 
+export const estornarLancamento = (contaId: number, transacaoId: number) =>
+  requisitar<ResultadoTransacao>(
+    `/api/contas/${contaId}/lancamentos/${transacaoId}/estorno`,
+    { metodo: 'POST' },
+  )
+
 // ---------------------------------------------------------------- extrato --
 
 export const buscarExtrato = (contaId: number, cursor?: string | null) => {

@@ -125,14 +125,14 @@ locais, porque esse nome só resolve dentro de container.
 ### Os testes
 
 ```bash
-pytest                   # backend: 317 testes
+pytest                   # backend: 335 testes
 pytest tests/integracao  # banco (exige `supabase start`)
 pytest tests/api         # HTTP ponta a ponta (exige `supabase start`)
 pytest --cov             # com relatório de cobertura
 ruff check .             # lint
 
 cd frontend
-npx vitest run           # frontend: 86 testes
+npx vitest run           # frontend: 98 testes
 npx tsc --noEmit         # checagem de tipos
 ```
 
@@ -171,7 +171,7 @@ supabase/
 ├── seed.sql          dois clientes, três contas, para desenvolvimento
 └── config.toml       serviços ativos do stack local
 
-tests/                317 testes
+tests/                335 testes
 ├── test_*.py         domínio, mais checagens de arquitetura por AST
 ├── banco_de_teste.py cria e migra o banco isolado dos testes
 ├── integracao/       contra `banco_jean_teste`, separado do desenvolvimento
@@ -209,6 +209,7 @@ Todas detalhadas em [`docs/01-decisoes-tecnicas.md`](docs/01-decisoes-tecnicas.m
 | **Movimentação é atômica** | Depósito, saque e transferência acontecem dentro de funções PL/pgSQL. Nada de ler o saldo, calcular em Python e regravar. |
 | **Erro tem código** | Nenhum `ValueError` anônimo. Cada falha de regra carrega um código estável que a apresentação consulta — nunca a mensagem em português. |
 | **A conta vem da URL, o dono vem do token** | Toda rota com `conta_id` verifica titularidade num único lugar. Conta alheia responde 404, nunca 403 — um 403 permitiria enumerar as contas do banco. |
+| **Correção é lançamento novo** | Estornar cria uma transação de sinal oposto ligada à original, que permanece intacta. O ledger nunca é reescrito. |
 | **A RLS protege o banco, não a API** | O backend conecta como dono e ignora RLS. Ela cobre o acesso direto via PostgREST; contra bug de roteamento quem cobre é o teste por rota. Duas camadas, caminhos diferentes. |
 | **Dinheiro é `string` no frontend** | `Dinheiro = string` em TypeScript. O compilador recusa `conta.saldo + 100`, e o saldo exibido é sempre o que a API devolveu — nunca calculado na tela. |
 

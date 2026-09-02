@@ -23,6 +23,11 @@ from backend.core.eventos import TipoTransacao, Transacao
 
 AGENCIA_PADRAO = "0001"
 
+#: Prazo para estornar, em dias. Política da aplicação (DT-05): o número sai
+#: daqui e o banco o aplica dentro da mesma transação, sem abrir janela entre
+#: verificar e escrever.
+JANELA_DE_ESTORNO_DIAS = 7
+
 # Espelha a sequence `contas_numero_seq` da Fase 1. Enquanto o estado vive em
 # memória, a numeração é da aplicação; a partir da F1 quem numera é o banco
 # (RN-1.8), porque duas aberturas simultâneas não podem colidir.

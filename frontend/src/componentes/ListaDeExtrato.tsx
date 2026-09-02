@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 
-import { buscarExtrato } from '../api/operacoes'
+import { buscarExtrato, estornarLancamento } from '../api/operacoes'
 import type { Lancamento } from '../api/tipos'
 import { ehEntrada, formatar } from '../dinheiro'
 import { Erro } from './Erro'
@@ -10,7 +10,12 @@ const ROTULO: Record<string, string> = {
   saque: 'Saque',
   transferencia_saida: 'Transferência enviada',
   transferencia_entrada: 'Transferência recebida',
+  estorno_entrada: 'Estorno recebido',
+  estorno_saida: 'Estorno enviado',
 }
+
+/** Quem recebeu não desfaz o que o outro mandou, e estorno não se estorna. */
+const ESTORNAVEL = new Set(['deposito', 'saque', 'transferencia_saida'])
 
 function quando(iso: string): string {
   return new Date(iso).toLocaleString('pt-BR', {
@@ -20,7 +25,15 @@ function quando(iso: string): string {
 }
 
 /** Histórico paginado por cursor. Entradas e saídas em cores distintas. */
-export function ListaDeExtrato({ contaId, versao }: { contaId: number; versao: number }) {
+interface Props {
+  contaId: number
+  versao: number
+  /** Chamado após um estorno, para saldo e extrato buscarem de novo. */
+  aoEstornar?: () => void
+}
+
+export function ListaDeExtrato({ contaId, versao, aoEstornar }: Props) {
+  const [estornando, setEstornando] = useState<number | null>(null)
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([])
   const [cursor, setCursor] = useState<string | null>(null)
   const [carregando, setCarregando] = useState(false)
@@ -50,6 +63,21 @@ export function ListaDeExtrato({ contaId, versao }: { contaId: number; versao: n
   useEffect(() => {
     void carregar(null, false)
   }, [carregar, versao])
+
+  async function estornar(lancamentoId: number) {
+    if (estornando !== null) return // um de cada vez
+    setEstornando(lancamentoId)
+    setErro(null)
+    try {
+      await estornarLancamento(contaId, lancamentoId)
+      aoEstornar?.()
+      await carregar(null, false)
+    } catch (causa) {
+      setErro(causa)
+    } finally {
+      setEstornando(null)
+    }
+  }
 
   return (
     <section className="cartao">
@@ -84,12 +112,29 @@ export function ListaDeExtrato({ contaId, versao }: { contaId: number; versao: n
                   {lancamento.contraparte && ` · ${lancamento.contraparte}`}
                 </small>
               </span>
-              <span
-                className="dinheiro"
-                style={{ color: entrada ? 'var(--entrada)' : 'var(--saida)' }}
-              >
-                {entrada ? '+' : '−'}
-                {formatar(lancamento.valor)}
+              <span className="linha" style={{ gap: 'var(--e3)' }}>
+                {ESTORNAVEL.has(lancamento.tipo) &&
+                  lancamento.estornado_por === null && (
+                    <button
+                      type="button"
+                      className="botao botao-secundario"
+                      style={{ padding: 'var(--e1) var(--e2)', fontSize: '.8rem' }}
+                      disabled={estornando !== null}
+                      onClick={() => void estornar(lancamento.id)}
+                    >
+                      {estornando === lancamento.id ? 'Estornando…' : 'Estornar'}
+                    </button>
+                  )}
+                {lancamento.estornado_por !== null && (
+                  <small style={{ color: 'var(--tinta-3)' }}>estornado</small>
+                )}
+                <span
+                  className="dinheiro"
+                  style={{ color: entrada ? 'var(--entrada)' : 'var(--saida)' }}
+                >
+                  {entrada ? '+' : '−'}
+                  {formatar(lancamento.valor)}
+                </span>
               </span>
             </li>
           )

@@ -43,7 +43,11 @@ export function paraValorDaApi(entrada: string): Dinheiro | null {
 }
 
 /** Rótulo e direção de um lançamento, para a lista do extrato. */
-export const ENTRADAS = new Set(['deposito', 'transferencia_entrada'])
+export const ENTRADAS = new Set([
+  'deposito',
+  'transferencia_entrada',
+  'estorno_entrada',
+])
 
 export function ehEntrada(tipo: string): boolean {
   return ENTRADAS.has(tipo)
