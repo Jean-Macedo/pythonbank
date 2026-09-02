@@ -2,7 +2,7 @@
 
 # Decisões técnicas
 
-Seis decisões que valem para todas as fases. Cada uma corrige um problema
+Sete decisões que valem para todas as fases. Cada uma corrige um problema
 estrutural do plano original e deve ser tratada como **restrição, não como
 sugestão**. Os requisitos das fases referenciam estes identificadores — quando
 surgir a pergunta "por que assim?" durante a implementação, a resposta tem
@@ -144,6 +144,34 @@ necessário até a Fase 4.
 
 ---
 
+<a id="dt-07"></a>
+## DT-07 — Os testes não escrevem no banco de desenvolvimento
+
+**Decisão.** Os testes de integração rodam em `banco_jean_teste`, um banco
+separado no mesmo cluster, criado e migrado automaticamente na primeira
+execução. Os de API permanecem no banco principal, mas limpam **apenas** os
+titulares que eles próprios criam — nada de `truncate`.
+
+**Por quê.** A suíte truncava `contas` e `transacoes` a cada caso. Rodar
+`pytest` com a aplicação aberta apagava as contas de quem estivesse usando o
+sistema — e, antes de uma correção anterior, o cadastro inteiro, deixando um
+token válido sem titular. Ninguém deveria perder trabalho por rodar teste.
+
+**Por que os de API ficaram.** Eles precisam de JWT assinado de verdade, e o
+GoTrue escreve em `auth.users` do banco principal. Como o PostgreSQL não faz
+foreign key entre bancos, movê-los quebraria o cadastro — a alternativa seria
+forjar tokens, e aí o teste passaria a verificar a nossa suposição sobre o
+formato em vez do formato real do Supabase. Foi assim que a assinatura ES256
+apareceu na Fase 3.
+
+**Consequência.** O banco de teste recebe as **mesmas migrações**, arquivo por
+arquivo. Um schema mantido à parte divergiria em silêncio, e o teste passaria a
+validar algo que não é o que roda em produção. O que ele acrescenta é um esboço
+mínimo de `auth` — `users` e `uid()` — porque ali não há GoTrue.
+
+
+---
+
 ## Resumo
 
 | ID | Decisão | Fase onde entra |
@@ -154,3 +182,4 @@ necessário até a Fase 4.
 | DT-04 | Conta na URL, titularidade no token | F2, F3 |
 | DT-05 | Domínio isolado de infraestrutura | F0, F2 |
 | DT-06 | Supabase local no desenvolvimento | F1 |
+| DT-07 | Testes em banco separado do desenvolvimento | F4 |
