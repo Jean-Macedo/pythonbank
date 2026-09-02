@@ -52,6 +52,13 @@ class Configuracao(BaseSettings):
         "chega ao frontend (RN-3.8).",
     )
 
+    confiar_em_proxy: bool = Field(
+        default=False,
+        description="Ler o IP de `X-Forwarded-For`. Só ligue quando houver "
+        "mesmo um proxy à frente: sem ele, qualquer um forja o cabeçalho e "
+        "escapa do limite de requisições a cada chamada.",
+    )
+
     ambiente: str = Field(default="desenvolvimento")
 
     autenticacao_stub: bool = Field(

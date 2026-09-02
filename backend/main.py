@@ -31,6 +31,7 @@ STATUS_POR_CODIGO = {
     "CADASTRO_INCOMPLETO": 403,
     "EMAIL_JA_CADASTRADO": 409,
     "CONTA_NAO_ENCONTRADA": 404,
+    "LIMITE_EXCEDIDO": 429,
     "LANCAMENTO_NAO_ENCONTRADO": 404,
     "JA_ESTORNADO": 409,
     "CPF_DUPLICADO": 409,
@@ -77,9 +78,18 @@ async def tratar_erro_de_dominio(request: Request, erro: ErroDeDominio):
     Assim, um erro de domínio criado no futuro já sai com formato e status
     coerentes sem que ninguém precise lembrar de tratá-lo.
     """
+    cabecalhos = {}
+    # `Retry-After` é o que permite ao cliente esperar o tempo certo em vez de
+    # insistir às cegas — e insistir às cegas é o que o limite existe para
+    # conter.
+    esperar = getattr(erro, "esperar_segundos", None)
+    if esperar is not None:
+        cabecalhos["Retry-After"] = str(esperar)
+
     return JSONResponse(
         status_code=STATUS_POR_CODIGO.get(erro.codigo, STATUS_PADRAO),
         content=ErroOut(codigo=erro.codigo, mensagem=erro.mensagem).model_dump(),
+        headers=cabecalhos,
     )
 
 

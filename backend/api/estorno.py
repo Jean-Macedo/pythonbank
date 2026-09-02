@@ -8,6 +8,7 @@ reconferido contra ela dentro da função PL/pgSQL.
 from fastapi import APIRouter, Depends, status
 
 from backend.api.deps import get_conta_do_cliente, get_conta_repo
+from backend.api.limite import limitar_movimentacao
 from backend.core.conta import JANELA_DE_ESTORNO_DIAS
 from backend.infra.repositorios import ContaLida, ContaRepo
 from backend.schemas import ResultadoTransacao
@@ -31,6 +32,8 @@ def estornar(
     aplicado pelo banco, dentro da mesma transação — contar os dias em Python e
     escrever depois seria a mesma corrida corrigida no limite de contas.
     """
+    limitar_movimentacao(conta.cliente_id)
+
     resultado = repo.estornar(transacao_id, conta.id, JANELA_DE_ESTORNO_DIAS)
     return ResultadoTransacao(
         saldo_atual=resultado.saldo, transacao_id=resultado.transacao_id

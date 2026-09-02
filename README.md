@@ -125,7 +125,7 @@ locais, porque esse nome só resolve dentro de container.
 ### Os testes
 
 ```bash
-pytest                   # backend: 335 testes
+pytest                   # backend: 351 testes
 pytest tests/integracao  # banco (exige `supabase start`)
 pytest tests/api         # HTTP ponta a ponta (exige `supabase start`)
 pytest --cov             # com relatório de cobertura
@@ -171,7 +171,7 @@ supabase/
 ├── seed.sql          dois clientes, três contas, para desenvolvimento
 └── config.toml       serviços ativos do stack local
 
-tests/                335 testes
+tests/                351 testes
 ├── test_*.py         domínio, mais checagens de arquitetura por AST
 ├── banco_de_teste.py cria e migra o banco isolado dos testes
 ├── integracao/       contra `banco_jean_teste`, separado do desenvolvimento

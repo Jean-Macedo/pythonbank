@@ -10,9 +10,11 @@ metade quando algo falha no meio.
 
 import logging
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 
 from backend.api.deps import get_cliente_repo
+from backend.api.limite import limitar_login, limitar_registro
+from backend.config import Configuracao, configuracao
 from backend.core.cliente import Cliente
 from backend.core.erros import ErroDeDominio
 from backend.infra import autenticacao
@@ -39,7 +41,12 @@ def para_sessao(credencial: Credencial) -> SessaoOut:
 
 
 @router.post("/registro", response_model=RegistroOut, status_code=status.HTTP_201_CREATED)
-def registrar(entrada: RegistroIn, repo: ClienteRepo = Depends(get_cliente_repo)):
+def registrar(
+    entrada: RegistroIn,
+    pedido: Request,
+    repo: ClienteRepo = Depends(get_cliente_repo),
+    cfg: Configuracao = Depends(configuracao),
+):
     """Cria usuário, titular e conta inicial.
 
     A ordem importa. Primeiro o domínio valida — CPF por dígito verificador,
@@ -51,6 +58,8 @@ def registrar(entrada: RegistroIn, repo: ClienteRepo = Depends(get_cliente_repo)
     sobraria um login que existe e não leva a lugar nenhum, e uma segunda
     tentativa com o mesmo e-mail bateria em "já cadastrado" para sempre.
     """
+    limitar_registro(pedido, cfg)
+
     # `Cliente` valida e normaliza; nada é criado se algo aqui levantar
     titular = Cliente(
         nome=entrada.nome,
@@ -98,7 +107,18 @@ def registrar(entrada: RegistroIn, repo: ClienteRepo = Depends(get_cliente_repo)
 
 
 @router.post("/login", response_model=SessaoOut)
-def login(entrada: LoginIn):
+def login(
+    entrada: LoginIn,
+    pedido: Request,
+    cfg: Configuracao = Depends(configuracao),
+):
+    """Limitado antes de tentar autenticar.
+
+    Contar só as tentativas que falham deixaria o atacante zerar o contador com
+    um acerto qualquer; e verificar depois de chamar o GoTrue faria o custo da
+    força bruta recair sobre ele.
+    """
+    limitar_login(pedido, entrada.email, cfg)
     return para_sessao(autenticacao.autenticar(entrada.email, entrada.senha))
 
 

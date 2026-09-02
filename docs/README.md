@@ -47,6 +47,7 @@ embute suposições que precisam ser desfeitas depois.
 | Documento | Conteúdo |
 | --- | --- |
 | [07 — Estorno](07-estorno.md) | Lançamento de sinal oposto; o original permanece |
+| [08 — Limite de requisições](08-limite.md) | Força bruta no login, rajada na movimentação |
 
 ### Apêndices
 
