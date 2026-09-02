@@ -23,6 +23,35 @@ import pytest
 
 psycopg = pytest.importorskip("psycopg", reason="psycopg não instalado")
 
+
+def _configuracao_disponivel() -> str | None:
+    """Devolve o motivo de não dar para coletar, ou `None` se der.
+
+    Estes testes sobem a aplicação, que exige configuração já no import — o
+    `CORSMiddleware` precisa das origens antes de qualquer requisição. Sem
+    `.env`, importar os módulos levanta `ValidationError` **na coleta**, e um
+    erro de coleta derruba a suíte inteira: quem clonou o repositório e rodou
+    `pytest` não veria nem os testes de domínio, que não dependem de nada.
+
+    Descoberto verificando o passo a passo do README num clone limpo.
+    """
+    try:
+        from backend.config import configuracao
+
+        configuracao()
+    except Exception as erro:  # noqa: BLE001 - qualquer falha aqui é "sem config"
+        return (
+            f"configuração ausente ({type(erro).__name__}). "
+            "Crie o arquivo: cp .env.example .env"
+        )
+    return None
+
+
+_motivo = _configuracao_disponivel()
+
+#: Faz o pytest ignorar este diretório em vez de estourar na coleta.
+collect_ignore_glob = ["*.py"] if _motivo else []
+
 import os  # noqa: E402
 
 from fastapi.testclient import TestClient  # noqa: E402

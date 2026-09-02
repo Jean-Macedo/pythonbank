@@ -344,3 +344,52 @@ class TestServicoIndisponivel:
     def test_volta_a_funcionar_depois(self, cliente_http, cabecalho_jean):
         """O cache é reconstruído: a queda não deixa a sessão quebrada."""
         assert cliente_http.get("/api/me", headers=cabecalho_jean).status_code == 200
+
+
+class TestEmissorSeparadoDoEndereco:
+    """O `iss` do token e o endereço de rede do Auth são coisas diferentes.
+
+    Descoberto ao conteinerizar: o GoTrue carimba nos tokens o endereço que ele
+    conhece (`127.0.0.1:54321`), e o backend em container o alcança por outro
+    (`host.docker.internal`). Derivar o emissor da URL de conexão fazia o login
+    funcionar e **toda** requisição autenticada seguinte devolver 401 — sintoma
+    confuso, porque o token estava perfeito.
+    """
+
+    def test_por_padrao_deriva_da_url(self):
+        from backend.config import Configuracao
+
+        cfg = Configuracao(
+            database_url="x", supabase_url="http://exemplo:54321",
+            supabase_anon_key="k",
+        )
+        assert cfg.emissor_esperado == "http://exemplo:54321/auth/v1"
+
+    def test_emissor_explicito_vence_a_url(self):
+        """O caso do container: alcança por um endereço, espera outro."""
+        from backend.config import Configuracao
+
+        cfg = Configuracao(
+            database_url="x",
+            supabase_url="http://host.docker.internal:54321",
+            supabase_issuer="http://127.0.0.1:54321",
+            supabase_anon_key="k",
+        )
+        assert cfg.emissor_esperado == "http://127.0.0.1:54321/auth/v1"
+
+    def test_aceita_emissor_ja_completo(self):
+        from backend.config import Configuracao
+
+        cfg = Configuracao(
+            database_url="x", supabase_url="http://a:1",
+            supabase_issuer="http://b:2/auth/v1", supabase_anon_key="k",
+        )
+        assert cfg.emissor_esperado == "http://b:2/auth/v1"
+
+    def test_barra_final_nao_duplica(self):
+        from backend.config import Configuracao
+
+        cfg = Configuracao(
+            database_url="x", supabase_url="http://a:1/", supabase_anon_key="k"
+        )
+        assert cfg.emissor_esperado == "http://a:1/auth/v1"

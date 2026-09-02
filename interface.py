@@ -5,9 +5,12 @@ Não valida nada por conta própria — se uma regra estiver aqui, está no luga
 errado. Enquanto este arquivo roda sobre `core/` sem importar infraestrutura, a
 separação de DT-05 está comprovada na prática.
 
-Este CLI é descartado na Fase 4, quando o React assume a apresentação.
+O React assumiu a apresentação na Fase 4, mas esta CLI continua: ela é a prova
+de que o domínio funciona sem infraestrutura nenhuma — sem banco, sem HTTP, sem
+autenticação — e é isso que `tests/test_arquitetura.py` verifica.
 """
 
+import re
 import sys
 
 from backend.core import dinheiro
@@ -64,6 +67,24 @@ def perguntar(rotulo: str) -> str:
     return input(f"{rotulo}: ").strip()
 
 
+def perguntar_valor(rotulo: str) -> str:
+    """Lê um valor monetário aceitando o formato brasileiro.
+
+    `1.234,56` e `1234.56` valem o mesmo. Recusar a vírgula seria o programa —
+    em português, para quem escreve dinheiro com vírgula — exigindo que a pessoa
+    use o separador da máquina.
+
+    A conversão vive aqui, e não no domínio: interpretar o formato de quem
+    digita é apresentação (DT-05). O `dinheiro.py` recebe o valor canônico, e é
+    exatamente o que `paraValorDaApi` faz do lado do React.
+    """
+    bruto = perguntar(rotulo).replace(" ", "")
+    if "," in bruto:
+        # com vírgula presente, o ponto só pode ser separador de milhar
+        return re.sub(r"\.", "", bruto).replace(",", ".")
+    return bruto
+
+
 def escolher_conta(cliente: Cliente, pergunta="Escolha a conta"):
     contas = cliente.contas
     if not contas:
@@ -90,7 +111,7 @@ def cadastrar_cliente(sessao: Sessao) -> None:
         data_nascimento=perguntar("Data de nascimento (DD/MM/AAAA)"),
         cpf=perguntar("CPF"),
         email=perguntar("E-mail"),
-        telefone=perguntar("Telefone com DDD (apenas números)"),
+        telefone=perguntar("Telefone com DDD"),
     )
     sessao.conta_ativa = sessao.cliente.abrir_conta(TipoConta.CORRENTE, "Principal")
     print(f"\nCadastro concluído. {sessao.cliente.nome}, {sessao.cliente.idade} anos.")
@@ -120,14 +141,14 @@ def selecionar_conta(sessao: Sessao) -> None:
 
 def depositar(sessao: Sessao) -> None:
     conta = sessao.exigir_conta()
-    transacao = conta.depositar(perguntar("Valor do depósito"))
+    transacao = conta.depositar(perguntar_valor("Valor do depósito"))
     print(f"\nDepósito de {dinheiro.formatar(transacao.valor)} efetuado.")
     print(f"Saldo: {dinheiro.formatar(transacao.saldo_apos)}")
 
 
 def sacar(sessao: Sessao) -> None:
     conta = sessao.exigir_conta()
-    transacao = conta.sacar(perguntar("Valor do saque"))
+    transacao = conta.sacar(perguntar_valor("Valor do saque"))
     print(f"\nSaque de {dinheiro.formatar(transacao.valor)} efetuado.")
     print(f"Saldo: {dinheiro.formatar(transacao.saldo_apos)}")
 
@@ -140,7 +161,7 @@ def transferir(sessao: Sessao) -> None:
     print("Destino:")
 
     destino = escolher_conta(cliente, "Escolha a conta de destino")
-    saida, _ = origem.transferir_para(destino, perguntar("Valor"))
+    saida, _ = origem.transferir_para(destino, perguntar_valor("Valor"))
 
     print(f"\n{dinheiro.formatar(saida.valor)} transferidos para {destino.rotulo}.")
     print(f"Saldo em {origem.rotulo}: {dinheiro.formatar(saida.saldo_apos)}")
